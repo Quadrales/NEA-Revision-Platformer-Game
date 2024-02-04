@@ -1,7 +1,8 @@
 # Modules
 import pygame
-import sqlite3
+import time
 import sys
+import sqlite3
 
 
 # Subroutines
@@ -20,7 +21,8 @@ def LoginScreen(window):
 	# Create 2 text boxes for the username and password to be entered into
 	username_input_rect = pygame.Rect(340, 280, 600, 80)
 	password_input_rect = pygame.Rect(340, 420, 600, 80)
-	login_rect = pygame.Rect(490, 550, 300, 80)
+	create_account_rect = pygame.Rect(340, 550, 280, 80)
+	login_rect = pygame.Rect(660, 550, 280, 80)
 
 	while valid == False:
 		for event in pygame.event.get():
@@ -34,6 +36,25 @@ def LoginScreen(window):
 				elif password_input_rect.collidepoint(event.pos):
 					password_active = True
 					username_active = False
+				elif create_account_rect.collidepoint(event.pos):
+					username = username_text
+					password = password_text
+					# Checks if the username and password are valid
+					valid = LoginValidation(username, password, window)
+					# Creates a new user with the current value of username and password
+					if valid == True:
+						CreateAccount(username, password)
+				elif login_rect.collidepoint(event.pos):
+					username = username_text
+					password = password_text
+					# Checks if the username and password are in the users.txt file
+					valid_login = LoginCheck(username, password)
+					if valid_login == True:
+						return valid_login
+					else:
+						drawText("Login not found. Please try again", error_font, (LAVENDER), 590, 600, window)
+						time.sleep(2.5)
+						
 				else:
 					username_active = False
 					password_active = False
@@ -44,39 +65,27 @@ def LoginScreen(window):
 				if username_active == True:
 					if event.key == pygame.K_BACKSPACE:
 						username_text = username_text[:-1]
-					elif event.key == pygame.K_RETURN:
-						username = username_text
-						password = password_text
-						# Checks if the username and password are valid
-						valid = LoginValidation(username, password)
-						if valid == True:
-							return username, password
 					else:
 						username_text += event.unicode
 				elif password_active == True:
 					if event.key == pygame.K_BACKSPACE:
 						password_text = password_text[:-1]
-					elif event.key == pygame.K_RETURN:
-						username = username_text
-						password = password_text
-						# Checks if the username and password are valid
-						valid = LoginValidation(username, password)
-						if valid == True:
-							return username, password
 					else:
 						password_text += event.unicode
 
-		window.fill(LOGIN_BG)
+		window.fill(MENU_BG)
 
 		pygame.draw.rect(window, DARK_GREY, username_input_rect, 4)
 		pygame.draw.rect(window, DARK_GREY, password_input_rect, 4)
 		pygame.draw.rect(window, DARK_GREY, login_rect, 4)
+		pygame.draw.rect(window, DARK_GREY, create_account_rect, 4)
 
 		# Displays text saying "Username" and "Password" above their respective text boxes
 		# and "Login" for the login box
 		DrawText("Username", base_font, (LIGHT_GREY), 340, 240, window)
 		DrawText("Password", base_font, (LIGHT_GREY), 340, 380, window)
-		DrawText("Login", base_font, (LIGHT_GREY), 590, 570, window)
+		DrawText("Create Account", base_font, (LIGHT_GREY), 355, 570, window)
+		DrawText("Login", base_font, (LIGHT_GREY), 750, 570, window)
 
 		# Outputs the user's inputted text into it's respective text box
 		text_surface = base_font.render(username_text,True,(255,255,255))
@@ -89,15 +98,13 @@ def LoginScreen(window):
 		pygame.time.Clock().tick(FPS)
 
 
-def LoginValidation(username, password):
-	#Connect to the database
-	#conn = sqlite3.connect("users.db")
-	#c = conn.cursor()
+def LoginValidation(username, password, window):
 	valid_username = False
 	valid_password = False
 	valid_login = False
 	uppercase_letters = 0
 	numbers_or_symbols = 0
+	error_font = pygame.font.Font(None, 32)
 
 	# Loops until the user enters valid login information
 	while valid_login == False:
@@ -126,7 +133,32 @@ def LoginValidation(username, password):
 		if valid_username == True and valid_password == True:
 			valid_login = True
 			return valid_login
+		else:
+			valid_login = False
+			return valid_login
 
+
+def CreateAccount(username, password):
+	users_file = open("users.txt", "a")
+	user = username + ", " + password
+	users_file.write(user)
+	users_file.close()
+
+def LoginCheck(username, password):
+	valid_login = False
+	user = username + ", " + password
+
+	while valid_login == False:
+		users_file = open("users.txt", "r")
+		for line in users_file:
+			if line == user:
+				valid_login = True
+				return valid_login
+			else:
+				return valid_login
+
+	users_file.close()
+	
 
 #def PlayerProperties(username, password):
 	#player_width = 50
@@ -157,9 +189,10 @@ CYAN = (0, 255, 255)
 MAGENTA = (255, 0, 255)
 
 # Custom Colours
-LOGIN_BG = (26, 6, 124)
+MENU_BG = (32, 12, 136)
 LIGHT_GREY = (10, 18, 58)
 DARK_GREY = (0, 17, 39)
+LAVENDER = (136, 148, 255)
 
 # Main Program
 def main():
@@ -170,6 +203,7 @@ def main():
 	pygame.display.set_caption("Revision Platformer Game")
 
 	done = False
+	not_logged_in = False
 
 	# Main Game Loop
 	while not done:
@@ -178,7 +212,12 @@ def main():
 			if event.type == pygame.QUIT:
 				done = True
 
-		LoginScreen(window)
+
+		while not_logged_in == False:
+			not_logged_in = LoginScreen(window)
+
+		MainMenu(window)
+		
 
 		pygame.display.flip()
 		pygame.time.Clock().tick(FPS)
