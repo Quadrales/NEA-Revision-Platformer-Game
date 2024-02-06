@@ -52,9 +52,9 @@ def LoginScreen(window):
 					if valid_login == True:
 						return valid_login
 					else:
-						drawText("Login not found. Please try again", error_font, (LAVENDER), 590, 600, window)
+						DrawText("Login not found. Please try again", error_font, (LAVENDER), 590, 600, window)
 						time.sleep(2.5)
-						
+
 				else:
 					username_active = False
 					password_active = False
@@ -158,7 +158,47 @@ def LoginCheck(username, password):
 				return valid_login
 
 	users_file.close()
+
+
+def MainMenu(window):
+	base_font = pygame.font.Font(None,48)
 	
+	for event in pygame.event.get():
+		if event.type == pygame.MOUSEBUTTONDOWN:
+			# Check if any button is clicked
+			if start_button_rect.collidepoint(event.pos):
+				print("Start Game")
+				# Add code to start the game
+			elif settings_button_rect.collidepoint(event.pos):
+				print("Settings")
+				# Add code to go to settings
+			elif stats_button_rect.collidepoint(event.pos):
+				print("Player Statistics")
+				# Add code to check player statistics
+			elif leaderboard_button_rect.collidepoint(event.pos):
+				print("Player Leaderboard")
+				# Add code to open player leaderboard
+			elif quit_button_rect.collidepoint(event.pos):
+				pygame.quit()
+				sys.exit()
+
+	# Draw background
+	window.fill(MENU_BG)
+
+	# Draw buttons
+	start_button_rect = pygame.draw.rect(window, DARK_GREY, (530, 190, 250, 50), 4)
+	settings_button_rect = pygame.draw.rect(window, DARK_GREY, (530, 290, 250, 50),4 )
+	stats_button_rect = pygame.draw.rect(window, DARK_GREY, (530, 390, 250, 50), 4)
+	leaderboard_button_rect = pygame.draw.rect(window, DARK_GREY, (530, 490, 250, 50), 4)
+	quit_button_rect = pygame.draw.rect(window, DARK_GREY, (530, 590, 250, 50), 4)
+
+	# Display text on buttons
+	DrawText("Start Game", base_font, LIGHT_GREY, 540, 200, window)
+	DrawText("Settings", base_font, LIGHT_GREY, 540, 300, window)
+	DrawText("Statistics", base_font, LIGHT_GREY, 540, 400, window)
+	DrawText("Leaderboard", base_font, LIGHT_GREY, 540, 500, window)
+	DrawText("Quit Game", base_font, LIGHT_GREY, 540, 600, window)
+
 
 #def PlayerProperties(username, password):
 	#player_width = 50
@@ -168,8 +208,23 @@ def LoginCheck(username, password):
 	#player_speed = 5
 	#is_jumping = False
 
-#class Player:
-	#pass
+# Set up the main character
+class Player(pygame.sprite.Sprite):
+	def __init__(self):
+		super().__init__()
+		self.image = pygame.Surface((50, 50))  # Replace this with the main character image
+		self.image.fill((255, 0, 0))  # Fill color
+		self.rect = self.image.get_rect()
+		self.rect.center = (WIDTH // 2, HEIGHT // 2)
+		self.speed = 5
+
+	def update(self):
+		keys = pygame.key.get_pressed()
+		if keys[pygame.K_a] and self.rect.left > 0:
+			self.rect.x -= self.speed
+		if keys[pygame.K_d] and self.rect.right < resolution[0]:
+			self.rect.x += self.speed
+
 
 class Entity:
 	pass
@@ -202,8 +257,12 @@ def main():
 	window = pygame.display.set_mode((WIDTH, HEIGHT))
 	pygame.display.set_caption("Revision Platformer Game")
 
+	# Create the player
+	player = Player()
+
 	done = False
-	not_logged_in = False
+	logged_in = False
+	in_game = False
 
 	# Main Game Loop
 	while not done:
@@ -213,11 +272,16 @@ def main():
 				done = True
 
 
-		while not_logged_in == False:
-			not_logged_in = LoginScreen(window)
+		while logged_in == False:
+			logged_in = LoginScreen(window)
+
 
 		MainMenu(window)
 		
+
+		if in_game == True:
+			player.update()
+
 
 		pygame.display.flip()
 		pygame.time.Clock().tick(FPS)
@@ -227,4 +291,4 @@ def main():
 	sys.exit()
 
 
-main() 
+main()
