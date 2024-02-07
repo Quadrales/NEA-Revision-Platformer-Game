@@ -2,6 +2,7 @@
 import pygame
 import time
 import sys
+import hashlib
 import sqlite3
 
 
@@ -12,6 +13,7 @@ def DrawText(text, font, textCol, x, y, window):
 
 
 def LoginScreen(window):
+	menu_bg_image = pygame.image.load('nea_menu_background.jpg')
 	base_font = pygame.font.Font(None,48)
 	username_text = ""
 	password_text = ""
@@ -73,7 +75,8 @@ def LoginScreen(window):
 					else:
 						password_text += event.unicode
 
-		window.fill(MENU_BG)
+		#window.fill(MENU_BG)
+		window.blit(menu_bg_image, (0, 0))
 
 		pygame.draw.rect(window, DARK_GREY, username_input_rect, 4)
 		pygame.draw.rect(window, DARK_GREY, password_input_rect, 4)
@@ -81,17 +84,17 @@ def LoginScreen(window):
 		pygame.draw.rect(window, DARK_GREY, create_account_rect, 4)
 
 		# Displays text saying "Username" and "Password" above their respective text boxes
-		# and "Login" for the login box
+		# and "Login" and "Create Account" inside their respective boxes
 		DrawText("Username", base_font, (LIGHT_GREY), 340, 240, window)
 		DrawText("Password", base_font, (LIGHT_GREY), 340, 380, window)
 		DrawText("Create Account", base_font, (LIGHT_GREY), 355, 570, window)
 		DrawText("Login", base_font, (LIGHT_GREY), 750, 570, window)
 
 		# Outputs the user's inputted text into it's respective text box
-		text_surface = base_font.render(username_text,True,(255,255,255))
+		text_surface = base_font.render(username_text,True, LIGHT_GREY)
 		window.blit(text_surface,(username_input_rect.x + 5, username_input_rect.y + 5))
 
-		text_surface = base_font.render(password_text,True,(255,255,255))
+		text_surface = base_font.render(password_text,True, LIGHT_GREY)
 		window.blit(text_surface,(password_input_rect.x + 5, password_input_rect.y + 5))
 
 		pygame.display.flip()
@@ -159,10 +162,25 @@ def LoginCheck(username, password):
 
 	users_file.close()
 
+def HashPassword(password):
+	# Read user login details from file
+	with open("users.txt", "r") as file:
+		lines = file.readlines()
+
+	# Create a new file to store hashed passwords
+	with open("hashed_users.txt", "w") as hashed_file:
+		for line in lines:
+			username, password = line.strip().split(", ")
+			# Hashes a password using the SHA-256 algorithm
+			hashed_password = hashlib.sha256(password.encode()).hexdigest()
+			hashed_file.write(f"{username},{hashed_password}\n")
+
+	print("Passwords hashed and saved to 'hashed_users.txt'.")
+
 
 def MainMenu(window):
 	base_font = pygame.font.Font(None,48)
-	
+
 	for event in pygame.event.get():
 		if event.type == pygame.MOUSEBUTTONDOWN:
 			# Check if any button is clicked
@@ -183,7 +201,8 @@ def MainMenu(window):
 				sys.exit()
 
 	# Draw background
-	window.fill(MENU_BG)
+	#window.fill(MENU_BG)
+	window.blit(menu_bg_image, (0, 0))
 
 	# Draw buttons
 	start_button_rect = pygame.draw.rect(window, DARK_GREY, (530, 190, 250, 50), 4)
@@ -199,14 +218,6 @@ def MainMenu(window):
 	DrawText("Leaderboard", base_font, LIGHT_GREY, 540, 500, window)
 	DrawText("Quit Game", base_font, LIGHT_GREY, 540, 600, window)
 
-
-#def PlayerProperties(username, password):
-	#player_width = 50
-	#player_height = 50
-	#player_x = WIDTH // 2 - player_width // 2
-	#player_y = HEIGHT - player_height - 50
-	#player_speed = 5
-	#is_jumping = False
 
 # Set up the main character
 class Player(pygame.sprite.Sprite):
@@ -244,7 +255,7 @@ CYAN = (0, 255, 255)
 MAGENTA = (255, 0, 255)
 
 # Custom Colours
-MENU_BG = (32, 12, 136)
+MENU_BG = (113, 72, 181)
 LIGHT_GREY = (10, 18, 58)
 DARK_GREY = (0, 17, 39)
 LAVENDER = (136, 148, 255)
@@ -277,7 +288,7 @@ def main():
 
 
 		MainMenu(window)
-		
+
 
 		if in_game == True:
 			player.update()
