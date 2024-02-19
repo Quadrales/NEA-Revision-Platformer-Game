@@ -2,8 +2,9 @@
 import pygame
 import time
 import sys
+import os
 import hashlib
-import sqlite3
+#import sqlite3
 
 
 # Subroutines
@@ -18,7 +19,9 @@ def LoginScreen():
 	username_active = False
 	password_active = False
 	valid = False
+	error_font = pygame.font.Font(None, 32)
 	# Create 2 text boxes for the username and password to be entered into
+	# and 2 boxes for the create account and login buttons
 	username_input_rect = pygame.Rect(340, 280, 600, 80)
 	password_input_rect = pygame.Rect(340, 420, 600, 80)
 	create_account_rect = pygame.Rect(340, 550, 280, 80)
@@ -40,10 +43,12 @@ def LoginScreen():
 					username = username_text
 					password = password_text
 					# Checks if the username and password are valid
-					valid = LoginValidation(username, password, window)
+					valid_account = LoginValidation(username, password)
 					# Creates a new user with the current value of username and password
-					if valid == True:
+					if valid_account == True:
 						CreateAccount(username, password)
+					username_text = ""
+					password_text = ""
 				elif login_rect.collidepoint(event.pos):
 					username = username_text
 					password = password_text
@@ -116,7 +121,6 @@ def LoginValidation(username, password):
 	valid_login = False
 	uppercase_letters = 0
 	numbers_or_symbols = 0
-	error_font = pygame.font.Font(None, 32)
 
 	# Loops until the user enters valid login information
 	while valid_login == False:
@@ -153,6 +157,7 @@ def LoginValidation(username, password):
 def CreateAccount(username, password):
 	users_file = open("users.txt", "a")
 	user = username + ", " + password
+	users_file.write(os.linesep)
 	users_file.write(user)
 	users_file.close()
 
@@ -163,11 +168,12 @@ def LoginCheck(username, password):
 	while valid_login == False:
 		users_file = open("users.txt", "r")
 		for line in users_file:
+			line = line.rstrip()
 			if line == user:
 				valid_login = True
 				return valid_login
-			else:
-				return valid_login
+		if valid_login == False:
+			return valid_login
 
 	users_file.close()
 
@@ -177,28 +183,16 @@ def HashPassword(password):
 		lines = file.readlines()
 
 	# Create a new file to store hashed passwords
-	with open("hashed_users.txt", "w") as hashed_file:
+	with open("hashed_users", "w") as hashed_file:
 		for line in lines:
-			username, password = line.strip().split(", ")
-			# Hashes a password using the password_hash subroutine
-			hashed_password = password_hash(password)
+			username, password = line.strip().split(",")  # Assuming username and password are separated by comma
+			hashed_password = hashlib.sha256(password.encode()).hexdigest()
 			hashed_file.write(f"{username},{hashed_password}\n")
 
-	print("Passwords hashed and saved to 'hashed_users.txt'.")
-
-def password_hash(password):
-	# Hashing algorithm that takes ASCII value and adds it to the result
-	# after multiplying by a prime number
-	prime = 31
-	result = 0
-	for char in password:
-		result = (result * prime) + ord(char)
-	return result
+			print("Passwords hashed and saved to 'hashed_users.txt'.")
 
 
 def MainMenu():
-	start_game = False
-	
 	# Main loop
 	while True:
 		for event in pygame.event.get():
@@ -210,10 +204,7 @@ def MainMenu():
 				if start_button_rect.collidepoint(event.pos):
 					print("Start Game")
 					difficulty = DifficultySelect()
-					print("what")
-					start_game = True
-					return start_game
-				# Add code to start the game
+					return difficulty
 				elif settings_button_rect.collidepoint(event.pos):
 					print("Settings")
 				# Add code to go to settings
@@ -262,15 +253,22 @@ def MainMenu():
 
 def DifficultySelect():
 	difficulty = ""
-	
+	big_font = pygame.font.Font(None, 64)
+
 	while True:
-                # Draw background
+		# Draw background
 		window.blit(menu_bg_image, (0, 0))
 
 		# Draw difficulty buttons and get their rects
 		easy_button_rect = pygame.draw.rect(window, DARK_GREY, (230, 290, 250, 50), 4)
 		medium_button_rect = pygame.draw.rect(window, DARK_GREY, (530, 290, 250, 50), 4)
 		hard_button_rect = pygame.draw.rect(window, DARK_GREY, (830, 290, 250, 50), 4)
+
+		# Draw text for the difficulty buttons
+		DrawText("Easy", base_font, LIGHT_GREY, 240, 300)
+		DrawText("Medium", base_font, LIGHT_GREY, 540, 300)
+		DrawText("Hard", base_font, LIGHT_GREY, 840, 300)
+		DrawText("Select Difficulty", big_font, LIGHT_GREY, 480, 150)
 
 		if easy_button_rect.collidepoint(pygame.mouse.get_pos()):
 			pygame.draw.rect(window, LIGHT_BLUE, easy_button_rect, 4)
@@ -286,35 +284,182 @@ def DifficultySelect():
 			if event.type == pygame.MOUSEBUTTONDOWN:
 				if easy_button_rect.collidepoint(event.pos):
 					difficulty = "Easy"
+					print(difficulty)
+					return difficulty
 				elif medium_button_rect.collidepoint(event.pos):
 					difficulty = "Medium"
+					print(difficulty)
+					return difficulty
 				elif hard_button_rect.collidepoint(event.pos):
 					difficulty = "Hard"
-					
+					print(difficulty)
+					return difficulty
+
 		pygame.display.flip()
 		pygame.time.Clock().tick(FPS)
 
+# Function to load level from image file
+def load_level_from_image(image_path):
+        level_data = []
 
-# Set up the main character
-class Player(pygame.sprite.Sprite):
-	def __init__(self):
-		super().__init__()
-		self.image = pygame.Surface((50, 50))  # Replace this with the main character image
-		self.image.fill((255, 0, 0))  # Fill color
-		self.rect = self.image.get_rect()
-		self.rect.center = (WIDTH // 2, HEIGHT // 2)
-		self.speed = 5
+        # Load image
+        level_image = pygame.image.load(image_path)
+        level_image.convert()  # Convert image to display format for better performance
 
-	def update(self):
-		keys = pygame.key.get_pressed()
-		if keys[pygame.K_a] and self.rect.left > 0:
-			self.rect.x -= self.speed
-		if keys[pygame.K_d] and self.rect.right < resolution[0]:
-			self.rect.x += self.speed
+        # Get level dimensions
+        level_width = level_image.get_width()
+        level_height = level_image.get_height()
+
+        # Parse image data
+        for y in range(level_height):
+                row_data = []
+                for x in range(level_width):
+                        pixel_color = level_image.get_at((x, y))
+                        # Example: check if pixel color represents a platform (use RGB values)
+                        if pixel_color == (0, 0, 0):  # Black color represents platform
+                                row_data.append(True)  # Add platform element to row data
+                        else:
+                                row_data.append(False)  # Add empty space element to row data
+                level_data.append(row_data)
+
+        return level_data
+
+# Function to render level elements
+def render_level(window, level_data):
+        # Example: render platforms based on level data
+        for y, row in enumerate(level_data):
+                for x, tile in enumerate(row):
+                        if tile:  # If tile is True (platform)
+                                pygame.draw.rect(window, (0, 0, 255), (x * 20, y * 20, 20, 20))  # Example: render blue platform
 
 
+# Class for enemies and other entities
 class Entity:
 	pass
+
+
+# Set up the main character
+class Player:
+	def __init__(self, x, y, width, height, health=100):
+		self.x = x
+		self.y = y
+		self.width = width
+		self.height = height
+		self.health = health
+		self.x_speed = 0
+		self.y_speed = 0
+		self.jump_force = -12
+		self.gravity = 0.55
+
+	def move(self, keys):
+		if keys[pygame.K_a]:
+			self.x_speed = -5
+		elif keys[pygame.K_d]:
+			self.x_speed = 5
+		else:
+			self.x_speed = 0
+
+	def jump(self):
+		if self.on_surface():  # Check if player is on any surface
+			self.y_speed = self.jump_force
+
+	def on_surface(self):
+		# Check if player is on any surface or platform
+		if self.y_speed == 0:
+			return True
+		return False
+
+	def apply_gravity(self):
+		self.y_speed += self.gravity
+
+	def update_position(self):
+		self.x += self.x_speed
+		self.y += self.y_speed
+
+	def draw(self, window, camera_x):
+		pygame.draw.rect(window, (255, 0, 0), (self.x - camera_x, self.y, self.width, self.height))
+
+	def take_damage(self, damage):
+		self.health -= damage
+
+	def heal(self, amount):
+		self.health += amount
+
+	def is_alive(self):
+		return self.health > 0
+
+
+def GameplayLoop():
+	# Player creation
+	player = Player(50, 50, 50, 50)
+	
+	# Camera properties
+	camera_x = 0
+	camera_speed = 5
+
+	# Load level from image
+        #level_data = load_level_from_image("level_image.png")
+
+	# Platform properties
+	platforms = [(20, 500, 200, 20), (300, 400, 200, 20), (500, 300, 200, 20), (600, 500, 1500, 20)]  # Example platform positions (x, y, width, height)
+
+	# Main game loop
+	running = True
+	while running:
+		for event in pygame.event.get():
+			if event.type == pygame.QUIT:
+				pygame.quit()
+				sys.exit()
+
+                # Render level elements
+                #render_level(window, level_data)
+
+		# Player movement
+		keys = pygame.key.get_pressed()
+		player.move(keys)
+
+		# Check for player jump
+		if keys[pygame.K_SPACE]:
+			player.jump()
+
+		# Apply gravity
+		player.apply_gravity()
+
+		# Update player position
+		player.update_position()
+
+		# Camera movement
+		if player.x - camera_x > 500:
+			camera_x += camera_speed
+		elif player.x - camera_x < 100:
+			camera_x -= camera_speed
+
+		# Check for collisions with platforms
+		for platform in platforms:
+			platform_rect = pygame.Rect(platform[0] - camera_x, platform[1], platform[2], platform[3])
+			player_rect = pygame.Rect(player.x, player.y, player.width, player.height)
+			if player_rect.colliderect(platform_rect):
+				# Resolve collision (adjust player position)
+				if player.y_speed > 0:
+					player.y = platform[1] - player.height
+					player.y_speed = 0
+				elif player.y_speed < 0:
+					player.y = platform[1] + platform[3]
+					player.y_speed = 0
+
+		# Draw background
+		window.fill((255, 255, 255))  # White background
+
+		# Draw platforms
+		for platform in platforms:
+			pygame.draw.rect(window, (0, 0, 255), (platform[0] - camera_x, platform[1], platform[2], platform[3]))  # Blue platforms
+
+		# Draw player
+		player.draw(window, camera_x)
+
+		pygame.display.flip()
+		pygame.time.Clock().tick(FPS)
+
 
 # Constants
 WIDTH, HEIGHT = 1280, 720
@@ -336,6 +481,7 @@ LIGHT_GREY = (10, 18, 58)
 DARK_GREY = (0, 17, 39)
 LAVENDER = (136, 148, 255)
 LIGHT_BLUE = (99, 155, 201)
+GAME_BG = ()
 
 # Initialize Pygame
 pygame.init()
@@ -349,11 +495,8 @@ window = pygame.display.set_mode((WIDTH, HEIGHT))
 
 
 # Main Program
-def main():
+def Main():
 	pygame.display.set_caption("Revision Platformer Game")
-
-	# Create the player
-	player = Player()
 
 	done = False
 	logged_in = False
@@ -361,12 +504,11 @@ def main():
 	in_game = False
 
 	# Main Game Loop
-	while not done:
+	while done == False:
 		# Stops the game loop if user clicks the close button on the window
 		for event in pygame.event.get():
 			if event.type == pygame.QUIT:
 				done = True
-
 
 		while logged_in == False:
 			logged_in = LoginScreen()
@@ -376,8 +518,7 @@ def main():
 			MainMenu()
 
 
-		if in_game == True:
-			player.update()
+		GameplayLoop()
 
 
 		pygame.display.flip()
@@ -388,4 +529,4 @@ def main():
 	sys.exit()
 
 
-main()
+Main()
