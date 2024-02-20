@@ -332,6 +332,12 @@ def render_level(window, level_data):
                         if tile:  # If tile is True (platform)
                                 pygame.draw.rect(window, (0, 0, 255), (x * 20, y * 20, 20, 20))  # Example: render blue platform
 
+class Platform:
+	def __init__(self, x, y, width, height):
+		self.rect = pygame.Rect(x, y, width, height)
+
+	def draw(self, window, camera_x):
+		pygame.draw.rect(window, (0, 0, 255), (self.rect.x - camera_x, self.rect.y, self.rect.width, self.rect.height))
 
 # Class for enemies and other entities
 class Entity:
@@ -341,15 +347,20 @@ class Entity:
 # Set up the main character
 class Player:
 	def __init__(self, x, y, width, height, health=100):
-		self.x = x
-		self.y = y
-		self.width = width
-		self.height = height
+		self.rect = pygame.Rect(x, y, width, height)
 		self.health = health
 		self.x_speed = 0
 		self.y_speed = 0
 		self.jump_force = -12
 		self.gravity = 0.55
+
+	@property
+	def x(self):
+		return self.rect.x
+
+	@property
+	def y(self):
+		return self.rect.y
 
 	def move(self, keys):
 		if keys[pygame.K_a]:
@@ -360,11 +371,10 @@ class Player:
 			self.x_speed = 0
 
 	def jump(self):
-		if self.on_surface():  # Check if player is on any surface
+		if self.on_surface():
 			self.y_speed = self.jump_force
 
 	def on_surface(self):
-		# Check if player is on any surface or platform
 		if self.y_speed == 0:
 			return True
 		return False
@@ -373,11 +383,11 @@ class Player:
 		self.y_speed += self.gravity
 
 	def update_position(self):
-		self.x += self.x_speed
-		self.y += self.y_speed
+		self.rect.x += self.x_speed
+		self.rect.y += self.y_speed
 
 	def draw(self, window, camera_x):
-		pygame.draw.rect(window, (255, 0, 0), (self.x - camera_x, self.y, self.width, self.height))
+		pygame.draw.rect(window, (255, 0, 0), (self.rect.x - camera_x, self.rect.y, self.rect.width, self.rect.height))
 
 	def take_damage(self, damage):
 		self.health -= damage
@@ -392,7 +402,7 @@ class Player:
 def GameplayLoop():
 	# Player creation
 	player = Player(50, 50, 50, 50)
-	
+
 	# Camera properties
 	camera_x = 0
 	camera_speed = 5
@@ -400,8 +410,13 @@ def GameplayLoop():
 	# Load level from image
         #level_data = load_level_from_image("level_image.png")
 
-	# Platform properties
-	platforms = [(20, 500, 200, 20), (300, 400, 200, 20), (500, 300, 200, 20), (600, 500, 1500, 20)]  # Example platform positions (x, y, width, height)
+	# Create some platforms
+	platforms = [
+		Platform(20, 500, 200, 50),
+		Platform(300, 400, 200, 50),
+		Platform(500, 300, 200, 50),
+		Platform(600, 500, 1500, 50)
+	]
 
 	# Main game loop
 	running = True
@@ -425,34 +440,32 @@ def GameplayLoop():
 		# Apply gravity
 		player.apply_gravity()
 
-		# Update player position
-		player.update_position()
-
 		# Camera movement
 		if player.x - camera_x > 500:
 			camera_x += camera_speed
 		elif player.x - camera_x < 100:
 			camera_x -= camera_speed
 
-		# Check for collisions with platforms
+		# Check for collision with platforms
 		for platform in platforms:
-			platform_rect = pygame.Rect(platform[0] - camera_x, platform[1], platform[2], platform[3])
-			player_rect = pygame.Rect(player.x, player.y, player.width, player.height)
-			if player_rect.colliderect(platform_rect):
-				# Resolve collision (adjust player position)
+			if player.rect.colliderect(platform.rect):
+				# Collision on the y-axis
 				if player.y_speed > 0:
-					player.y = platform[1] - player.height
-					player.y_speed = 0
+					player.rect.bottom = platform.rect.top
+					player.y_speed = 0  # Stop falling
 				elif player.y_speed < 0:
-					player.y = platform[1] + platform[3]
-					player.y_speed = 0
+					player.rect.top = platform.rect.bottom
+					player.y_speed = 0  # Stop jumping
+
+		# Update player position
+		player.update_position()
 
 		# Draw background
 		window.fill((255, 255, 255))  # White background
 
 		# Draw platforms
 		for platform in platforms:
-			pygame.draw.rect(window, (0, 0, 255), (platform[0] - camera_x, platform[1], platform[2], platform[3]))  # Blue platforms
+			platform.draw(window, camera_x)
 
 		# Draw player
 		player.draw(window, camera_x)
@@ -460,7 +473,7 @@ def GameplayLoop():
 		pygame.display.flip()
 		pygame.time.Clock().tick(FPS)
 
-
+                
 # Constants
 WIDTH, HEIGHT = 1280, 720
 FPS = 60
@@ -500,7 +513,7 @@ def Main():
 
 	done = False
 	logged_in = False
-	in_menu = False
+	in_menu = True
 	in_game = False
 
 	# Main Game Loop
@@ -510,9 +523,9 @@ def Main():
 			if event.type == pygame.QUIT:
 				done = True
 
-		while logged_in == False:
-			logged_in = LoginScreen()
-			in_menu = True
+		#while logged_in == False:
+			#logged_in = LoginScreen()
+			#in_menu = True
 
 		if in_menu == True:
 			MainMenu()
