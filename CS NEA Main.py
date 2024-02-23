@@ -12,7 +12,6 @@ def DrawText(text, font, textCol, x, y):
 	img = font.render(text, True, textCol)
 	window.blit(img, (x, y))
 
-
 def LoginScreen():
 	username_text = ""
 	password_text = ""
@@ -300,37 +299,37 @@ def DifficultySelect():
 
 # Function to load level from image file
 def load_level_from_image(image_path):
-        level_data = []
+	level_data = []
 
-        # Load image
-        level_image = pygame.image.load(image_path)
-        level_image.convert()  # Convert image to display format for better performance
+	# Load image
+	level_image = pygame.image.load(image_path)
+	level_image.convert()  # Convert image to display format for better performance
 
-        # Get level dimensions
-        level_width = level_image.get_width()
-        level_height = level_image.get_height()
+	# Get level dimensions
+	level_width = level_image.get_width()
+	level_height = level_image.get_height()
 
-        # Parse image data
-        for y in range(level_height):
-                row_data = []
-                for x in range(level_width):
-                        pixel_color = level_image.get_at((x, y))
-                        # Example: check if pixel color represents a platform (use RGB values)
-                        if pixel_color == (0, 0, 0):  # Black color represents platform
-                                row_data.append(True)  # Add platform element to row data
-                        else:
-                                row_data.append(False)  # Add empty space element to row data
-                level_data.append(row_data)
+	# Parse image data
+	for y in range(level_height):
+		row_data = []
+		for x in range(level_width):
+			pixel_color = level_image.get_at((x, y))
+			# Example: check if pixel color represents a platform (use RGB values)
+			if pixel_color == (0, 0, 0):  # Black color represents platform
+				row_data.append(True)  # Add platform element to row data
+			else:
+				row_data.append(False)  # Add empty space element to row data
+		level_data.append(row_data)
 
-        return level_data
+	return level_data
 
 # Function to render level elements
 def render_level(window, level_data):
-        # Example: render platforms based on level data
-        for y, row in enumerate(level_data):
-                for x, tile in enumerate(row):
-                        if tile:  # If tile is True (platform)
-                                pygame.draw.rect(window, (0, 0, 255), (x * 20, y * 20, 20, 20))  # Example: render blue platform
+	# Example: render platforms based on level data
+	for y, row in enumerate(level_data):
+		for x, tile in enumerate(row):
+			if tile:  # If tile is True (platform)
+				pygame.draw.rect(window, (0, 0, 255), (x * 20, y * 20, 20, 20))  # Example: render blue platform
 
 class Platform:
 	def __init__(self, x, y, width, height):
@@ -408,7 +407,7 @@ def GameplayLoop():
 	camera_speed = 5
 
 	# Load level from image
-        #level_data = load_level_from_image("level_image.png")
+	#level_data = load_level_from_image("level_image.png")
 
 	# Create some platforms
 	platforms = [
@@ -426,8 +425,11 @@ def GameplayLoop():
 				pygame.quit()
 				sys.exit()
 
-                # Render level elements
-                #render_level(window, level_data)
+		# Render level elements
+		#render_level(window, level_data)
+
+		# Update player position
+		player.update_position()
 
 		# Player movement
 		keys = pygame.key.get_pressed()
@@ -448,7 +450,7 @@ def GameplayLoop():
 
 		# Check for collision with platforms
 		for platform in platforms:
-			if player.rect.colliderect(platform.rect):
+			if player.rect.colliderect(platform.rect) and player.rect.left != platform.rect.right and player.rect.right != platform.rect.left:
 				# Collision on the y-axis
 				if player.y_speed > 0:
 					player.rect.bottom = platform.rect.top
@@ -456,9 +458,9 @@ def GameplayLoop():
 				elif player.y_speed < 0:
 					player.rect.top = platform.rect.bottom
 					player.y_speed = 0  # Stop jumping
-
-		# Update player position
-		player.update_position()
+			# Collision on the x-axis
+			elif ((player.rect.left == platform.rect.right and keys[pygame.K_d] == False) or (player.rect.right == platform.rect.left and keys[pygame.K_a] == False)) and (player.y > platform.rect.top - 50 and player.y < platform.rect.bottom):
+				player.x_speed = 0
 
 		# Draw background
 		window.fill((255, 255, 255))  # White background
@@ -473,7 +475,7 @@ def GameplayLoop():
 		pygame.display.flip()
 		pygame.time.Clock().tick(FPS)
 
-                
+		
 # Constants
 WIDTH, HEIGHT = 1280, 720
 FPS = 60
