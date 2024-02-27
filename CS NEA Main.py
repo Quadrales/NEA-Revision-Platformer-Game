@@ -297,51 +297,49 @@ def DifficultySelect():
 		pygame.display.flip()
 		pygame.time.Clock().tick(FPS)
 
-# Function to load level from image file
-def load_level_from_image(image_path):
-	level_data = []
-
-	# Load image
-	level_image = pygame.image.load(image_path)
-	level_image.convert()  # Convert image to display format for better performance
-
-	# Get level dimensions
-	level_width = level_image.get_width()
-	level_height = level_image.get_height()
-
-	# Parse image data
-	for y in range(level_height):
-		row_data = []
-		for x in range(level_width):
-			pixel_color = level_image.get_at((x, y))
-			# Example: check if pixel color represents a platform (use RGB values)
-			if pixel_color == (0, 0, 0):  # Black color represents platform
-				row_data.append(True)  # Add platform element to row data
-			else:
-				row_data.append(False)  # Add empty space element to row data
-		level_data.append(row_data)
-
-	return level_data
-
-# Function to render level elements
-def render_level(window, level_data):
-	# Example: render platforms based on level data
-	for y, row in enumerate(level_data):
-		for x, tile in enumerate(row):
-			if tile:  # If tile is True (platform)
-				pygame.draw.rect(window, (0, 0, 255), (x * 20, y * 20, 20, 20))  # Example: render blue platform
 
 class Platform:
 	def __init__(self, x, y, width, height):
 		self.rect = pygame.Rect(x, y, width, height)
 
 	def draw(self, window, camera_x):
-		pygame.draw.rect(window, (0, 0, 255), (self.rect.x - camera_x, self.rect.y, self.rect.width, self.rect.height))
+		pygame.draw.rect(window, PLATFORM_COLOUR, (self.rect.x - camera_x, self.rect.y, self.rect.width, self.rect.height))
 
-# Class for enemies and other entities
-class Entity:
-	pass
+class Gun:
+    def __init__(self):
+	self.damage = 10  # Adjust damage as needed
 
+    def shoot(self, enemy):
+	enemy.take_damage(self.damage)
+
+class Sword:
+    def __init__(self):
+	self.damage = 20  # Adjust damage as needed
+
+    def swing(self, enemy):
+	enemy.take_damage(self.damage)
+
+# Class for enemies
+class Enemy:
+    def __init__(self, x, y, width, height, speed, health=50):  # Adjust default health as needed
+	self.rect = pygame.Rect(x, y, width, height)
+	self.speed = speed
+	self.health = health
+
+    def move(self, player):
+	if self.rect.x < player.rect.x:
+	    self.rect.x += self.speed
+	elif self.rect.x > player.rect.x:
+	    self.rect.x -= self.speed
+
+    def draw(self, window, camera_x):
+	pygame.draw.rect(window, (0, 255, 0), (self.rect.x - camera_x, self.rect.y, self.rect.width, self.rect.height))
+
+    def take_damage(self, damage):
+	self.health -= damage
+	if self.health <= 0:
+	    # Enemy defeated, perform any necessary actions (e.g., remove from list)
+	    pass
 
 # Set up the main character
 class Player:
@@ -352,6 +350,8 @@ class Player:
 		self.y_speed = 0
 		self.jump_force = -12
 		self.gravity = 0.55
+		self.gun = Gun()
+		self.sword = Sword()
 
 	@property
 	def x(self):
@@ -388,6 +388,16 @@ class Player:
 	def draw(self, window, camera_x):
 		pygame.draw.rect(window, (255, 0, 0), (self.rect.x - camera_x, self.rect.y, self.rect.width, self.rect.height))
 
+	def attack(self, enemies, key):
+		if key == pygame.K_j:  # Gun attack
+			for enemy in enemies:
+				if self.rect.colliderect(enemy.rect):
+					self.gun.shoot(enemy)
+		elif key == pygame.K_k:  # Sword attack
+			for enemy in enemies:
+				if self.rect.colliderect(enemy.rect):
+					self.sword.swing(enemy)
+	
 	def take_damage(self, damage):
 		self.health -= damage
 
@@ -399,81 +409,92 @@ class Player:
 
 
 def GameplayLoop():
-	# Player creation
-	player = Player(50, 50, 50, 50)
+    # Player creation
+    player = Player(50, 50, 50, 50)
 
-	# Camera properties
-	camera_x = 0
-	camera_speed = 5
+    # Camera properties
+    camera_x = 0
+    camera_speed = 5
 
-	# Load level from image
-	#level_data = load_level_from_image("level_image.png")
+    # Create some platforms
+    platforms = [
+	Platform(20, 500, 200, 50),
+	Platform(300, 400, 200, 50),
+	Platform(500, 300, 200, 50),
+	Platform(600, 500, 1500, 50)
+    ]
 
-	# Create some platforms
-	platforms = [
-		Platform(20, 500, 200, 50),
-		Platform(300, 400, 200, 50),
-		Platform(500, 300, 200, 50),
-		Platform(600, 500, 1500, 50)
-	]
+    # Create enemies
+    enemies = [
+	Enemy(600, 450, 50, 50, 2),
+	Enemy(800, 250, 50, 50, 1),
+	Enemy(1000, 450, 50, 50, 3)
+    ]
 
-	# Main game loop
-	running = True
-	while running:
-		for event in pygame.event.get():
-			if event.type == pygame.QUIT:
-				pygame.quit()
-				sys.exit()
+    # Main game loop
+    running = True
+    while running:
+	for event in pygame.event.get():
+	    if event.type == pygame.QUIT:
+		pygame.quit()
+		sys.exit()
 
-		# Render level elements
-		#render_level(window, level_data)
+	# Update player position
+	player.update_position()
 
-		# Update player position
-		player.update_position()
+	# Player movement
+	keys = pygame.key.get_pressed()
+	player.move(keys)
 
-		# Player movement
-		keys = pygame.key.get_pressed()
-		player.move(keys)
+	# Check for player jump
+	if keys[pygame.K_SPACE]:
+	    player.jump()
 
-		# Check for player jump
-		if keys[pygame.K_SPACE]:
-			player.jump()
+	# Apply gravity
+	player.apply_gravity()
 
-		# Apply gravity
-		player.apply_gravity()
+	# Camera movement
+	if player.x - camera_x > 500:
+	    camera_x += camera_speed
+	elif player.x - camera_x < 100:
+	    camera_x -= camera_speed
 
-		# Camera movement
-		if player.x - camera_x > 500:
-			camera_x += camera_speed
-		elif player.x - camera_x < 100:
-			camera_x -= camera_speed
+	# Move enemies
+	for enemy in enemies:
+	    enemy.move(player)
 
-		# Check for collision with platforms
-		for platform in platforms:
-			if player.rect.colliderect(platform.rect) and player.rect.left != platform.rect.right and player.rect.right != platform.rect.left:
-				# Collision on the y-axis
-				if player.y_speed > 0:
-					player.rect.bottom = platform.rect.top
-					player.y_speed = 0  # Stop falling
-				elif player.y_speed < 0:
-					player.rect.top = platform.rect.bottom
-					player.y_speed = 0  # Stop jumping
-			# Collision on the x-axis
-			elif ((player.rect.left == platform.rect.right and keys[pygame.K_d] == False) or (player.rect.right == platform.rect.left and keys[pygame.K_a] == False)) and (player.y > platform.rect.top - 50 and player.y < platform.rect.bottom):
-				player.x_speed = 0
+	# Check for collision with platforms
+	for platform in platforms:
+	    if player.rect.colliderect(platform.rect) and player.rect.left != platform.rect.right and player.rect.right != platform.rect.left:
+		# Collision on the y-axis
+		if player.y_speed > 0:
+		    player.rect.bottom = platform.rect.top
+		    player.y_speed = 0  # Stop falling
+		elif player.y_speed < 0:
+		    player.rect.top = platform.rect.bottom
+		    player.y_speed = 0  # Stop jumping
+	    # Collision on the x-axis
+	    elif ((player.rect.left == platform.rect.right and keys[pygame.K_d] == False) or (
+		    player.rect.right == platform.rect.left and keys[pygame.K_a] == False)) and (
+		    player.y > platform.rect.top - 50 and player.y < platform.rect.bottom):
+		player.x_speed = 0
 
-		# Draw background
-		window.fill((255, 255, 255))  # White background
+	# Draw background
+	window.fill(GAME_BG)
 
-		# Draw platforms
-		for platform in platforms:
-			platform.draw(window, camera_x)
+	# Draw platforms
+	for platform in platforms:
+	    platform.draw(window, camera_x)
 
-		# Draw player
-		player.draw(window, camera_x)
+	# Draw player
+	player.draw(window, camera_x)
 
-		pygame.display.flip()
-		pygame.time.Clock().tick(FPS)
+	# Draw enemies
+	for enemy in enemies:
+	    enemy.draw(window, camera_x)
+
+	pygame.display.flip()
+	pygame.time.Clock().tick(FPS)
 
 		
 # Constants
@@ -496,7 +517,9 @@ LIGHT_GREY = (10, 18, 58)
 DARK_GREY = (0, 17, 39)
 LAVENDER = (136, 148, 255)
 LIGHT_BLUE = (99, 155, 201)
-GAME_BG = ()
+GAME_BG = (187, 159, 255)
+PLATFORM_COLOUR = (126, 132, 247)
+WALL_COLOUR = (200, 200, 200)
 
 # Initialize Pygame
 pygame.init()
