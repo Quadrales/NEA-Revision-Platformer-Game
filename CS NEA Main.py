@@ -305,27 +305,62 @@ class Platform:
     def draw(self, window, camera_x):
         pygame.draw.rect(window, PLATFORM_COLOUR, (self.rect.x - camera_x, self.rect.y, self.rect.width, self.rect.height))
 
+class Bullet:
+    def __init__(self, x, y, direction):
+        self.rect = pygame.Rect(x, y, 10, 5)
+        self.direction = direction
+        self.speed = 10  # Adjust bullet speed as needed
+        self.damage = 10  # Adjust bullet damage as needed
+
+    def update(self):
+        if self.direction == "right":
+            self.rect.x += self.speed
+        else:
+            self.rect.x -= self.speed
+
+    def draw(self, window, camera_x):
+        pygame.draw.rect(window, GREEN, (self.rect.x - camera_x, self.rect.y, self.rect.width, self.rect.height))
+
+
 class Gun:
     def __init__(self):
         self.damage = 10  # Adjust damage as needed
+        self.bullets = []
 
-    def shoot(self, player, enemies):
-        hitbox = pygame.Rect(player.rect.x + player.rect.width, player.rect.y + player.rect.height / 2 - 5, 20, 10)
-        for enemy in enemies:
-            if hitbox.colliderect(enemy.rect):
-                enemy.take_damage(self.damage)
-                print("gun attack")
+    def shoot(self, player):
+        if player.facing_right:
+            bullet = Bullet(player.rect.x + player.rect.width, player.rect.y + player.rect.height / 2 - 2, "right")
+        else:
+            bullet = Bullet(player.rect.x, player.rect.y + player.rect.height / 2 - 2, "left")
+        self.bullets.append(bullet)
+
+    def update_bullets(self):
+        for bullet in self.bullets:
+            bullet.update()
+
+    def draw_bullets(self, window, camera_x):
+        for bullet in self.bullets:
+            bullet.draw(window, camera_x)
 
 class Sword:
     def __init__(self):
         self.damage = 20  # Adjust damage as needed
 
-    def swing(self, player, enemies):
-        hitbox = pygame.Rect(player.rect.x + player.rect.width, player.rect.y + player.rect.height / 2 - 25, 40, 50)
+    def swing(self, player, enemies, window, camera_x):
+        if player.facing_right:
+            hitbox = pygame.Rect(player.rect.x + player.rect.width, player.rect.y + player.rect.height / 2 - 15, 100, 30)
+        else:
+            hitbox = pygame.Rect(player.rect.x - 100, player.rect.y + player.rect.height / 2 - 15, 100, 30)
+
         for enemy in enemies:
             if hitbox.colliderect(enemy.rect):
-                enemy.take_damage(self.damage)
+                enemy.take_damage(self.damage, enemies)
                 print("sword attack")
+
+        # Draw damage hitbox
+        pygame.draw.rect(window, GREEN, (hitbox.x - camera_x, hitbox.y, hitbox.width, hitbox.height))  # Draw the hitbox as a green rectangle
+        pygame.display.flip()  # Update display
+        time.sleep(1)  # Display hitbox for 1 second
 
 # Class for enemies
 class Enemy:
@@ -341,13 +376,12 @@ class Enemy:
             self.rect.x -= self.speed
 
     def draw(self, window, camera_x):
-        pygame.draw.rect(window, (0, 255, 0), (self.rect.x - camera_x, self.rect.y, self.rect.width, self.rect.height))
+        pygame.draw.rect(window, (230, 60, 60), (self.rect.x - camera_x, self.rect.y, self.rect.width, self.rect.height))
 
-    def take_damage(self, damage):
+    def take_damage(self, damage, enemies):
         self.health -= damage
         if self.health <= 0:
-            # Enemy defeated, perform any necessary actions (e.g., remove from list)
-            pass
+            enemies.remove(self)
 
 # Set up the main character
 class Player:
@@ -361,6 +395,7 @@ class Player:
         self.gun = Gun()
         self.sword = Sword()
         self.attacking = False  # Flag to track if the player is currently attacking
+        self.facing_right = True  # Initially facing right
 
     @property
     def x(self):
@@ -373,8 +408,10 @@ class Player:
     def move(self, keys):
         if keys[pygame.K_a]:
             self.x_speed = -5
+            self.facing_right = False  # Set facing direction to left
         elif keys[pygame.K_d]:
             self.x_speed = 5
+            self.facing_right = True  # Set facing direction to right
         else:
             self.x_speed = 0
 
@@ -395,16 +432,16 @@ class Player:
         self.rect.y += self.y_speed
 
     def draw(self, window, camera_x):
-        pygame.draw.rect(window, (255, 0, 0), (self.rect.x - camera_x, self.rect.y, self.rect.width, self.rect.height))
+        pygame.draw.rect(window, (60, 100, 230), (self.rect.x - camera_x, self.rect.y, self.rect.width, self.rect.height))
 
-    def attack(self, enemies, key):
+    def attack(self, enemies, key, window, camera_x):
         if key == pygame.K_j:  # Gun attack
             if not self.attacking:
-                self.gun.shoot(self, enemies)
+                self.gun.shoot(self)
                 self.attacking = True
         elif key == pygame.K_k:  # Sword attack
             if not self.attacking:
-                self.sword.swing(self, enemies)
+                self.sword.swing(self, enemies, window, camera_x)
                 self.attacking = True
 
     def take_damage(self, damage):
@@ -426,10 +463,11 @@ def GameplayLoop():
 
     # Create some platforms
     platforms = [
-        Platform(20, 500, 200, 50),
+        Platform(50, 500, 200, 50),
         Platform(300, 400, 200, 50),
         Platform(500, 300, 200, 50),
-        Platform(600, 500, 1500, 50)
+        Platform(600, 500, 1500, 50),
+        Platform(0, 0, 50, 1000)
     ]
 
     # Create enemies
@@ -447,9 +485,12 @@ def GameplayLoop():
                 pygame.quit()
                 sys.exit()
             elif event.type == pygame.KEYDOWN:  # Handle keyboard events
-                player.attack(enemies, event.key)  # Call attack method
+                player.attack(enemies, event.key, window, camera_x)  # Call attack method with window and camera_x parameters
 
         # Update player position
+        player.update_position()
+        
+        # Player movement
         keys = pygame.key.get_pressed()
         player.move(keys)
 
@@ -460,12 +501,20 @@ def GameplayLoop():
         # Apply gravity
         player.apply_gravity()
 
-        # Update player position
-        player.update_position()
-
         # Reset attack flag when attack animation ends
         if not any(keys[key] for key in (pygame.K_j, pygame.K_k)):
             player.attacking = False
+
+        # Update bullets
+        player.gun.update_bullets()
+
+        # Check for bullet-enemy collisions
+        for bullet in player.gun.bullets:
+            for enemy in enemies:
+                if bullet.rect.colliderect(enemy.rect):
+                    enemy.take_damage(bullet.damage, enemies)
+                    player.gun.bullets.remove(bullet)
+                    break  # Exit inner loop once bullet hits enemy
 
         # Camera movement
         if player.x - camera_x > 500:
@@ -475,7 +524,7 @@ def GameplayLoop():
 
         # Move enemies
         for enemy in enemies:
-            enemy.move(player)
+            enemy.move(player)        
 
         # Check for collision with platforms
         for platform in platforms:
@@ -487,10 +536,10 @@ def GameplayLoop():
                 elif player.y_speed < 0:
                     player.rect.top = platform.rect.bottom
                     player.y_speed = 0  # Stop jumping
-                # Collision on the x-axis
-                elif ((player.rect.left == platform.rect.right and keys[pygame.K_d] == False) or (player.rect.right == platform.rect.left and keys[pygame.K_a] == False)) and (player.y > platform.rect.top - 50 and player.y < platform.rect.bottom):
+            # Collision on the x-axis
+            elif ((player.rect.left == platform.rect.right and keys[pygame.K_d] == False) or (player.rect.right == platform.rect.left and keys[pygame.K_a] == False)) and (player.y > platform.rect.top - 50 and player.y < platform.rect.bottom):
                     player.x_speed = 0
-
+        
         # Draw background
         window.fill(GAME_BG)
 
@@ -500,6 +549,9 @@ def GameplayLoop():
 
         # Draw player
         player.draw(window, camera_x)
+
+        # Draw bullets
+        player.gun.draw_bullets(window, camera_x)
 
         # Draw enemies
         for enemy in enemies:
