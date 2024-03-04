@@ -4,6 +4,7 @@ import time
 import sys
 import os
 import hashlib
+import random
 #import sqlite3
 
 
@@ -307,10 +308,10 @@ class Platform:
 
 class Bullet:
     def __init__(self, x, y, direction):
-        self.rect = pygame.Rect(x, y, 10, 5)
+        self.rect = pygame.Rect(x, y, 16, 8)
         self.direction = direction
-        self.speed = 10  # Adjust bullet speed as needed
-        self.damage = 10  # Adjust bullet damage as needed
+        self.speed = 12
+        self.damage = 8
 
     def update(self):
         if self.direction == "right":
@@ -324,15 +325,20 @@ class Bullet:
 
 class Gun:
     def __init__(self):
-        self.damage = 10  # Adjust damage as needed
+        self.damage = 8
         self.bullets = []
+        self.last_shot_time = 0
+        self.cooldown = 0.25  # Cooldown time in seconds
 
     def shoot(self, player):
-        if player.facing_right:
-            bullet = Bullet(player.rect.x + player.rect.width, player.rect.y + player.rect.height / 2 - 2, "right")
-        else:
-            bullet = Bullet(player.rect.x, player.rect.y + player.rect.height / 2 - 2, "left")
-        self.bullets.append(bullet)
+        current_time = time.time()
+        if current_time - self.last_shot_time > self.cooldown:
+            if player.facing_right:
+                bullet = Bullet(player.rect.x + player.rect.width, player.rect.y + player.rect.height / 2 - 2, "right")
+            else:
+                bullet = Bullet(player.rect.x, player.rect.y + player.rect.height / 2 - 2, "left")
+            self.bullets.append(bullet)
+            self.last_shot_time = current_time
 
     def update_bullets(self):
         for bullet in self.bullets:
@@ -344,27 +350,38 @@ class Gun:
 
 class Sword:
     def __init__(self):
-        self.damage = 20  # Adjust damage as needed
+        self.damage = 20
+        self.last_swing_time = 0
+        self.cooldown = 0.8  # Cooldown time in seconds
 
     def swing(self, player, enemies, window, camera_x):
-        if player.facing_right:
-            hitbox = pygame.Rect(player.rect.x + player.rect.width, player.rect.y + player.rect.height / 2 - 15, 100, 30)
-        else:
-            hitbox = pygame.Rect(player.rect.x - 100, player.rect.y + player.rect.height / 2 - 15, 100, 30)
+        current_time = time.time()
+        if current_time - self.last_swing_time > self.cooldown:
+            # Creates hitboxes for facing right or left
+            if player.facing_right:
+                hitbox = pygame.Rect(player.rect.x + player.rect.width - 10, player.rect.y + player.rect.height / 2 - 15, 100, 30)
+            else:
+                hitbox = pygame.Rect(player.rect.x - (2 * player.rect.width) + 10, player.rect.y + player.rect.height / 2 - 15, 100, 30)
+            # Creates hitboxes for facing up or down
+            if player.facing_up:
+                hitbox = pygame.Rect(player.rect.x + 10, player.rect.y - (2 * player.rect.height) + 10, 30, 100)
+            elif player.facing_down:
+                hitbox = pygame.Rect(player.rect.x + 10, player.rect.y + player.rect.height - 10, 30, 100)
+            # Checks if an enemy collides with the hitbox and if so, damages the enemy
+            for enemy in enemies:
+                if hitbox.colliderect(enemy.rect):
+                    enemy.take_damage(self.damage, enemies)
+                    self.last_swing_time = current_time
+                    print("sword attack")
 
-        for enemy in enemies:
-            if hitbox.colliderect(enemy.rect):
-                enemy.take_damage(self.damage, enemies)
-                print("sword attack")
-
-        # Draw damage hitbox
-        pygame.draw.rect(window, GREEN, (hitbox.x - camera_x, hitbox.y, hitbox.width, hitbox.height))  # Draw the hitbox as a green rectangle
-        pygame.display.flip()  # Update display
-        time.sleep(1)  # Display hitbox for 1 second
+            # Draw damage hitbox
+            pygame.draw.rect(window, GREEN, (hitbox.x - camera_x, hitbox.y, hitbox.width, hitbox.height))  # Draw the hitbox as a green rectangle
+            pygame.display.flip()  # Update display
+            time.sleep(1)
 
 # Class for enemies
 class Enemy:
-    def __init__(self, x, y, width, height, speed, health=50):  # Adjust default health as needed
+    def __init__(self, x, y, width, height, speed, health=50):
         self.rect = pygame.Rect(x, y, width, height)
         self.speed = speed
         self.health = health
@@ -382,6 +399,18 @@ class Enemy:
         self.health -= damage
         if self.health <= 0:
             enemies.remove(self)
+            if random.randint(1, 4) == 1:
+                # Create an upgrade box
+                upgrade_box = UpgradeBox(self.rect.x, self.rect.y)
+                upgrade_boxes.append(upgrade_box)
+
+class UpgradeBox:
+    def __init__(self, x, y):
+        self.rect = pygame.Rect(x, y, 40, 40)  # Adjust the size as needed
+        self.color = (255, 215, 0)  # Gold color
+
+    def draw(self, window, camera_x):
+        pygame.draw.rect(window, self.color, (self.rect.x - camera_x, self.rect.y, self.rect.width, self.rect.height))
 
 # Set up the main character
 class Player:
@@ -395,7 +424,14 @@ class Player:
         self.gun = Gun()
         self.sword = Sword()
         self.attacking = False  # Flag to track if the player is currently attacking
+        self.last_attack_time = 0
+        self.last_damage_time = 0
+        self.damage_cooldown = 1.5  # Cooldown time in seconds
         self.facing_right = True  # Initially facing right
+        self.facing_up = False
+        self.facing_down = False
+        self.speed_modifier = 1
+        self.damage_resistance = 0
 
     @property
     def x(self):
@@ -407,13 +443,23 @@ class Player:
 
     def move(self, keys):
         if keys[pygame.K_a]:
-            self.x_speed = -5
+            self.x_speed = -5 * self.speed_modifier
             self.facing_right = False  # Set facing direction to left
         elif keys[pygame.K_d]:
-            self.x_speed = 5
+            self.x_speed = 5 * self.speed_modifier
             self.facing_right = True  # Set facing direction to right
         else:
             self.x_speed = 0
+        # Checks if player is also facing up or down
+        if keys[pygame.K_w]:
+            self.facing_up = True
+            self.facing_down = False
+        elif keys[pygame.K_s]:
+            self.facing_down = True
+            self.facing_up = False
+        else:
+            self.facing_up = False
+            self.facing_down = False
 
     def jump(self):
         if self.on_surface():
@@ -445,13 +491,74 @@ class Player:
                 self.attacking = True
 
     def take_damage(self, damage):
-        self.health -= damage
+        self.speed_modifier = 1
+        current_time = time.time()
+        if current_time - self.last_damage_time > self.damage_cooldown:
+            self.health -= damage
+            self.speed_modifier = 0.7
+            self.last_damage_time = current_time
+
+    def apply_upgrade(self, upgrade):
+        # Apply the selected upgrade
+        if upgrade == "weapon damage":
+            self.weapon_damage += 5
+        elif upgrade == "damage resistance":
+            self.damage_resistance += 4
+        elif upgrade == "movement speed":
+            self.speed_modifer += 0.1
 
     def heal(self, amount):
         self.health += amount
 
     def is_alive(self):
         return self.health > 0
+
+def HandleUpgrade():
+    upgrade = ""
+    big_font = pygame.font.Font(None, 64)
+
+    while True:
+        # Draw background
+        #window.blit(menu_bg_image, (0, 0))
+
+        # Draw difficulty buttons and get their rects
+        upgrade1_rect = pygame.draw.rect(window, DARK_GREY, (230, 290, 250, 50), 4)
+        upgrade2_rect = pygame.draw.rect(window, DARK_GREY, (530, 290, 250, 50), 4)
+        upgrade3_rect = pygame.draw.rect(window, DARK_GREY, (830, 290, 250, 50), 4)
+
+        # Draw text for the difficulty buttons
+        DrawText("Weapon Damage +10%", base_font, LIGHT_GREY, 240, 300)
+        DrawText("Damage Resistance +5", base_font, LIGHT_GREY, 540, 300)
+        DrawText("Movement Speed +10%", base_font, LIGHT_GREY, 840, 300)
+        DrawText("Select Upgrade", big_font, LIGHT_GREY, 480, 150)
+
+        if upgrade1_rect.collidepoint(pygame.mouse.get_pos()):
+            pygame.draw.rect(window, LIGHT_BLUE, upgrade1_rect, 4)
+        if upgrade2_rect.collidepoint(pygame.mouse.get_pos()):
+            pygame.draw.rect(window, LIGHT_BLUE, upgrade2_rect, 4)
+        if upgrade3_rect.collidepoint(pygame.mouse.get_pos()):
+            pygame.draw.rect(window, LIGHT_BLUE, upgrade3_rect, 4)
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if upgrade1_rect.collidepoint(event.pos):
+                    upgrade = "weapon damage"
+                    print(upgrade)
+                    return upgrade
+                elif upgrade2_rect.collidepoint(event.pos):
+                    upgrade = "damage resistance"
+                    print(upgrade)
+                    return upgrade
+                elif upgrade3_rect.collidepoint(event.pos):
+                    upgrade = "movement speed"
+                    print(upgrade)
+                    return upgrade
+
+        pygame.display.flip()
+        pygame.time.Clock().tick(FPS)
 
 def GameplayLoop():
     # Player creation
@@ -463,7 +570,7 @@ def GameplayLoop():
 
     # Create some platforms
     platforms = [
-        Platform(50, 500, 200, 50),
+        Platform(50, 500, 1000, 50),
         Platform(300, 400, 200, 50),
         Platform(500, 300, 200, 50),
         Platform(600, 500, 1500, 50),
@@ -473,8 +580,8 @@ def GameplayLoop():
     # Create enemies
     enemies = [
         Enemy(600, 450, 50, 50, 2),
-        Enemy(800, 250, 50, 50, 1),
-        Enemy(1000, 450, 50, 50, 3)
+        Enemy(800, 250, 50, 50, 2),
+        Enemy(1000, 450, 50, 50, 2)
     ]
 
     # Main game loop
@@ -486,6 +593,12 @@ def GameplayLoop():
                 sys.exit()
             elif event.type == pygame.KEYDOWN:  # Handle keyboard events
                 player.attack(enemies, event.key, window, camera_x)  # Call attack method with window and camera_x parameters
+                # Check if the player pressed 'e' to interact with upgrade boxes
+                if event.key == pygame.K_e:
+                    for upgrade_box in upgrade_boxes:
+                        if player.rect.colliderect(upgrade_box.rect):
+                            HandleUpgrade()
+                            upgrade_boxes.remove(upgrade_box)  # Remove the upgrade box after interaction
 
         # Update player position
         player.update_position()
@@ -500,6 +613,10 @@ def GameplayLoop():
 
         # Apply gravity
         player.apply_gravity()
+
+        # Continuous shooting while 'j' is held down
+        if keys[pygame.K_j]:
+            player.gun.shoot(player)
 
         # Reset attack flag when attack animation ends
         if not any(keys[key] for key in (pygame.K_j, pygame.K_k)):
@@ -524,7 +641,13 @@ def GameplayLoop():
 
         # Move enemies
         for enemy in enemies:
-            enemy.move(player)        
+            enemy.move(player)
+
+        # Player and enemy collision detection
+        for enemy in enemies:
+            if player.rect.colliderect(enemy.rect):
+                player.take_damage(10)  # Player takes 10 damage upon collision with an enemy
+                print(player.health)
 
         # Check for collision with platforms
         for platform in platforms:
@@ -556,6 +679,10 @@ def GameplayLoop():
         # Draw enemies
         for enemy in enemies:
             enemy.draw(window, camera_x)
+
+        # Draw upgrade boxes
+        for upgrade_box in upgrade_boxes:
+            upgrade_box.draw(window, camera_x)
 
         pygame.display.flip()
         pygame.time.Clock().tick(FPS)
@@ -591,6 +718,7 @@ pygame.init()
 # Other Global Variables
 menu_bg_image = pygame.image.load('nea_menu_background.jpg')
 base_font = pygame.font.Font(None, 48)
+upgrade_boxes = []
 
 # Sets the window size and displays it as a rectangluar window
 window = pygame.display.set_mode((WIDTH, HEIGHT))
