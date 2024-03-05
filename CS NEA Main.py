@@ -307,11 +307,11 @@ class Platform:
         pygame.draw.rect(window, PLATFORM_COLOUR, (self.rect.x - camera_x, self.rect.y, self.rect.width, self.rect.height))
 
 class Bullet:
-    def __init__(self, x, y, direction):
+    def __init__(self, x, y, direction, damage):
         self.rect = pygame.Rect(x, y, 16, 8)
         self.direction = direction
         self.speed = 12
-        self.damage = 8
+        self.damage = damage
 
     def update(self):
         if self.direction == "right":
@@ -322,21 +322,20 @@ class Bullet:
     def draw(self, window, camera_x):
         pygame.draw.rect(window, GREEN, (self.rect.x - camera_x, self.rect.y, self.rect.width, self.rect.height))
 
-
 class Gun:
     def __init__(self):
-        self.damage = 8
         self.bullets = []
         self.last_shot_time = 0
         self.cooldown = 0.25  # Cooldown time in seconds
+        self.bullet_damage = 8  # Default bullet damage
 
     def shoot(self, player):
         current_time = time.time()
         if current_time - self.last_shot_time > self.cooldown:
             if player.facing_right:
-                bullet = Bullet(player.rect.x + player.rect.width, player.rect.y + player.rect.height / 2 - 2, "right")
+                bullet = Bullet(player.rect.x + player.rect.width, player.rect.y + player.rect.height / 2 - 2, "right", self.bullet_damage)
             else:
-                bullet = Bullet(player.rect.x, player.rect.y + player.rect.height / 2 - 2, "left")
+                bullet = Bullet(player.rect.x, player.rect.y + player.rect.height / 2 - 2, "left", self.bullet_damage)
             self.bullets.append(bullet)
             self.last_shot_time = current_time
 
@@ -347,6 +346,13 @@ class Gun:
     def draw_bullets(self, window, camera_x):
         for bullet in self.bullets:
             bullet.draw(window, camera_x)
+
+    def apply_upgrade(self):
+        # Increase bullet damage by 3
+        self.bullet_damage *= 3
+        # Update the damage of all bullets
+        for bullet in self.bullets:
+            bullet.damage = self.bullet_damage
 
 class Sword:
     def __init__(self):
@@ -379,6 +385,9 @@ class Sword:
             pygame.display.flip()  # Update display
             time.sleep(1)
 
+    def apply_upgrade(self):
+        self.damage *= 3
+
 # Class for enemies
 class Enemy:
     def __init__(self, x, y, width, height, speed, health=50):
@@ -399,18 +408,18 @@ class Enemy:
         self.health -= damage
         if self.health <= 0:
             enemies.remove(self)
-            if random.randint(1, 4) == 1:
+            if random.randint(1, 1) == 1:
                 # Create an upgrade box
                 upgrade_box = UpgradeBox(self.rect.x, self.rect.y)
                 upgrade_boxes.append(upgrade_box)
 
 class UpgradeBox:
     def __init__(self, x, y):
-        self.rect = pygame.Rect(x, y, 40, 40)  # Adjust the size as needed
+        self.rect = pygame.Rect(x, y, 30, 30)  # Adjust the size as needed
         self.color = (255, 215, 0)  # Gold color
 
     def draw(self, window, camera_x):
-        pygame.draw.rect(window, self.color, (self.rect.x - camera_x, self.rect.y, self.rect.width, self.rect.height))
+        pygame.draw.rect(window, self.color, (self.rect.x - camera_x, self.rect.y+20, self.rect.width, self.rect.height))
 
 # Set up the main character
 class Player:
@@ -501,7 +510,9 @@ class Player:
     def apply_upgrade(self, upgrade):
         # Apply the selected upgrade
         if upgrade == "weapon damage":
-            self.weapon_damage += 5
+            # Pass the upgrade information to the sword and gun objects
+            self.sword.apply_upgrade()
+            self.gun.apply_upgrade()
         elif upgrade == "damage resistance":
             self.damage_resistance += 4
         elif upgrade == "movement speed":
@@ -522,14 +533,14 @@ def HandleUpgrade():
         #window.blit(menu_bg_image, (0, 0))
 
         # Draw difficulty buttons and get their rects
-        upgrade1_rect = pygame.draw.rect(window, DARK_GREY, (230, 290, 250, 50), 4)
-        upgrade2_rect = pygame.draw.rect(window, DARK_GREY, (530, 290, 250, 50), 4)
-        upgrade3_rect = pygame.draw.rect(window, DARK_GREY, (830, 290, 250, 50), 4)
+        upgrade1_rect = pygame.draw.rect(window, DARK_GREY, (440, 290, 400, 70), 4)
+        upgrade2_rect = pygame.draw.rect(window, DARK_GREY, (440, 440, 400, 70), 4)
+        upgrade3_rect = pygame.draw.rect(window, DARK_GREY, (440, 590, 400, 70), 4)
 
         # Draw text for the difficulty buttons
-        DrawText("Weapon Damage +10%", base_font, LIGHT_GREY, 240, 300)
-        DrawText("Damage Resistance +5", base_font, LIGHT_GREY, 540, 300)
-        DrawText("Movement Speed +10%", base_font, LIGHT_GREY, 840, 300)
+        DrawText("Weapon Damage +10%", base_font, LIGHT_GREY, 450, 310)
+        DrawText("Damage Resistance +5", base_font, LIGHT_GREY, 450, 460)
+        DrawText("Movement Speed +10%", base_font, LIGHT_GREY, 450, 610)
         DrawText("Select Upgrade", big_font, LIGHT_GREY, 480, 150)
 
         if upgrade1_rect.collidepoint(pygame.mouse.get_pos()):
@@ -597,7 +608,12 @@ def GameplayLoop():
                 if event.key == pygame.K_e:
                     for upgrade_box in upgrade_boxes:
                         if player.rect.colliderect(upgrade_box.rect):
-                            HandleUpgrade()
+                            print(player.sword.damage)
+                            print(bullet.damage)
+                            upgrade = HandleUpgrade()
+                            player.apply_upgrade(upgrade)
+                            print(player.sword.damage)
+                            print(bullet.damage)
                             upgrade_boxes.remove(upgrade_box)  # Remove the upgrade box after interaction
 
         # Update player position
