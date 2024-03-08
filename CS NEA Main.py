@@ -326,14 +326,14 @@ class Gun:
     def __init__(self):
         self.bullets = []
         self.last_shot_time = 0
-        self.cooldown = 0.25  # Cooldown time in seconds
+        self.cooldown = 0.25 # Cooldown time in seconds
         self.bullet_damage = 8  # Default bullet damage
 
     def shoot(self, player):
         current_time = time.time()
         if current_time - self.last_shot_time > self.cooldown:
             if player.facing_right:
-                bullet = Bullet(player.rect.x + player.rect.width, player.rect.y + player.rect.height / 2 - 2, "right", self.bullet_damage)
+                bullet = Bullet(player.rect.x + player.rect.width - 16, player.rect.y + player.rect.height / 2 - 2, "right", self.bullet_damage)
             else:
                 bullet = Bullet(player.rect.x, player.rect.y + player.rect.height / 2 - 2, "left", self.bullet_damage)
             self.bullets.append(bullet)
@@ -347,18 +347,20 @@ class Gun:
         for bullet in self.bullets:
             bullet.draw(window, camera_x)
 
-    def apply_upgrade(self):
-        # Increase bullet damage by 3
-        self.bullet_damage *= 3
+    def apply_damage_upgrade(self):
+        self.bullet_damage *= 1.1
         # Update the damage of all bullets
         for bullet in self.bullets:
             bullet.damage = self.bullet_damage
+
+    def apply_attack_upgrade(self, attack_speed):
+        self.cooldown *= attack_speed
 
 class Sword:
     def __init__(self):
         self.damage = 20
         self.last_swing_time = 0
-        self.cooldown = 0.8  # Cooldown time in seconds
+        self.cooldown = 0.8 # Cooldown time in seconds
 
     def swing(self, player, enemies, window, camera_x):
         current_time = time.time()
@@ -382,11 +384,14 @@ class Sword:
 
             # Draw damage hitbox
             pygame.draw.rect(window, GREEN, (hitbox.x - camera_x, hitbox.y, hitbox.width, hitbox.height))  # Draw the hitbox as a green rectangle
-            pygame.display.flip()  # Update display
-            time.sleep(1)
+            pygame.display.flip()
+            #time.sleep(1)
 
-    def apply_upgrade(self):
-        self.damage *= 3
+    def apply_damage_upgrade(self):
+        self.damage *= 1.1
+
+    def apply_attack_upgrade(self, attack_speed):
+        self.cooldown *= attack_speed
 
 # Class for enemies
 class Enemy:
@@ -430,8 +435,8 @@ class Player:
         self.y_speed = 0
         self.jump_force = -12
         self.gravity = 0.55
-        self.gun = Gun()
-        self.sword = Sword()
+        self.attack_speed = 1
+        self.damage_resistance = 0
         self.attacking = False  # Flag to track if the player is currently attacking
         self.last_attack_time = 0
         self.last_damage_time = 0
@@ -439,8 +444,8 @@ class Player:
         self.facing_right = True  # Initially facing right
         self.facing_up = False
         self.facing_down = False
-        self.speed_modifier = 1
-        self.damage_resistance = 0
+        self.gun = Gun()
+        self.sword = Sword()
 
     @property
     def x(self):
@@ -452,10 +457,10 @@ class Player:
 
     def move(self, keys):
         if keys[pygame.K_a]:
-            self.x_speed = -5 * self.speed_modifier
+            self.x_speed = -5
             self.facing_right = False  # Set facing direction to left
         elif keys[pygame.K_d]:
-            self.x_speed = 5 * self.speed_modifier
+            self.x_speed = 5
             self.facing_right = True  # Set facing direction to right
         else:
             self.x_speed = 0
@@ -503,20 +508,26 @@ class Player:
         self.speed_modifier = 1
         current_time = time.time()
         if current_time - self.last_damage_time > self.damage_cooldown:
-            self.health -= damage
-            self.speed_modifier = 0.7
-            self.last_damage_time = current_time
+            if damage > 0:
+                self.health -= damage
+                self.speed_modifier = 0.7
+                self.last_damage_time = current_time
+            else:
+                self.health -= 1
+                self.speed_modifier = 0.7
+                self.last_damage_time = current_time
 
     def apply_upgrade(self, upgrade):
         # Apply the selected upgrade
         if upgrade == "weapon damage":
-            # Pass the upgrade information to the sword and gun objects
-            self.sword.apply_upgrade()
-            self.gun.apply_upgrade()
+            self.sword.apply_damage_upgrade()
+            self.gun.apply_damage_upgrade()
         elif upgrade == "damage resistance":
-            self.damage_resistance += 4
-        elif upgrade == "movement speed":
-            self.speed_modifer += 0.1
+            self.damage_resistance += 3
+        elif upgrade == "attack speed":
+            self.attack_speed *= 0.9
+            self.sword.apply_attack_upgrade(self.attack_speed)
+            self.gun.apply_attack_upgrade(self.attack_speed)
 
     def heal(self, amount):
         self.health += amount
@@ -529,18 +540,15 @@ def HandleUpgrade():
     big_font = pygame.font.Font(None, 64)
 
     while True:
-        # Draw background
-        #window.blit(menu_bg_image, (0, 0))
-
         # Draw difficulty buttons and get their rects
-        upgrade1_rect = pygame.draw.rect(window, DARK_GREY, (440, 290, 400, 70), 4)
-        upgrade2_rect = pygame.draw.rect(window, DARK_GREY, (440, 440, 400, 70), 4)
-        upgrade3_rect = pygame.draw.rect(window, DARK_GREY, (440, 590, 400, 70), 4)
+        upgrade1_rect = pygame.draw.rect(window, DARK_GREY, (440, 280, 400, 70), 4)
+        upgrade2_rect = pygame.draw.rect(window, DARK_GREY, (440, 430, 400, 70), 4)
+        upgrade3_rect = pygame.draw.rect(window, DARK_GREY, (440, 580, 400, 70), 4)
 
-        # Draw text for the difficulty buttons
-        DrawText("Weapon Damage +10%", base_font, LIGHT_GREY, 450, 310)
-        DrawText("Damage Resistance +5", base_font, LIGHT_GREY, 450, 460)
-        DrawText("Movement Speed +10%", base_font, LIGHT_GREY, 450, 610)
+        # Draw text for the upgrade buttons
+        DrawText("Weapon Damage +10%", base_font, LIGHT_GREY, 450, 300)
+        DrawText("Damage Resistance +3", base_font, LIGHT_GREY, 450, 450)
+        DrawText("Attack Speed +10%", base_font, LIGHT_GREY, 450, 600)
         DrawText("Select Upgrade", big_font, LIGHT_GREY, 480, 150)
 
         if upgrade1_rect.collidepoint(pygame.mouse.get_pos()):
@@ -564,7 +572,7 @@ def HandleUpgrade():
                     print(upgrade)
                     return upgrade
                 elif upgrade3_rect.collidepoint(event.pos):
-                    upgrade = "movement speed"
+                    upgrade = "attack speed"
                     print(upgrade)
                     return upgrade
 
@@ -590,9 +598,11 @@ def GameplayLoop():
 
     # Create enemies
     enemies = [
-        Enemy(600, 450, 50, 50, 2),
-        Enemy(800, 250, 50, 50, 2),
-        Enemy(1000, 450, 50, 50, 2)
+        Enemy(600, 460, 50, 40, 2),
+        Enemy(800, 260, 50, 40, 2),
+        Enemy(1000, 460, 50, 40, 2),
+        Enemy(1400, 460, 50, 40, 2),
+        Enemy(1700, 460, 50, 40, 2)
     ]
 
     # Main game loop
@@ -608,12 +618,12 @@ def GameplayLoop():
                 if event.key == pygame.K_e:
                     for upgrade_box in upgrade_boxes:
                         if player.rect.colliderect(upgrade_box.rect):
-                            print(player.sword.damage)
-                            print(bullet.damage)
+                            #print(player.sword.damage)
+                            #print(bullet.damage)
                             upgrade = HandleUpgrade()
                             player.apply_upgrade(upgrade)
-                            print(player.sword.damage)
-                            print(bullet.damage)
+                            #print(player.sword.damage)
+                            #print(bullet.damage)
                             upgrade_boxes.remove(upgrade_box)  # Remove the upgrade box after interaction
 
         # Update player position
@@ -652,7 +662,7 @@ def GameplayLoop():
         # Camera movement
         if player.x - camera_x > 500:
             camera_x += camera_speed
-        elif player.x - camera_x < 100:
+        elif player.x - camera_x < 500:
             camera_x -= camera_speed
 
         # Move enemies
@@ -662,7 +672,7 @@ def GameplayLoop():
         # Player and enemy collision detection
         for enemy in enemies:
             if player.rect.colliderect(enemy.rect):
-                player.take_damage(10)  # Player takes 10 damage upon collision with an enemy
+                player.take_damage(10 - player.damage_resistance)  # Player takes 10 damage upon collision with an enemy
                 print(player.health)
 
         # Check for collision with platforms
@@ -700,8 +710,54 @@ def GameplayLoop():
         for upgrade_box in upgrade_boxes:
             upgrade_box.draw(window, camera_x)
 
+        if player.health <= 0:
+            option = GameOver()
+            if option == "menu":
+                return
+            elif option == "game stats":
+                #ViewGameStats()
+                return
         pygame.display.flip()
         pygame.time.Clock().tick(FPS)
+
+def GameOver():
+    big_font = pygame.font.Font(None, 64)
+
+    while True:
+        # Draw option buttons and get their rects
+        menu_button_rect = pygame.draw.rect(window, DARK_GREY, (440, 280, 400, 70), 4)
+        game_stats_button_rect = pygame.draw.rect(window, DARK_GREY, (440, 430, 400, 70), 4)
+
+        # Draw text for the option buttons
+        DrawText("Game Over", big_font, RED, 510, 150)
+        DrawText("Back To Menu", base_font, LIGHT_GREY, 450, 300)
+        DrawText("View Game Stats", base_font, LIGHT_GREY, 450, 450)
+
+        if menu_button_rect.collidepoint(pygame.mouse.get_pos()):
+            pygame.draw.rect(window, LIGHT_BLUE, menu_button_rect, 4)
+        if game_stats_button_rect.collidepoint(pygame.mouse.get_pos()):
+            pygame.draw.rect(window, LIGHT_BLUE, game_stats_button_rect, 4)
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if menu_button_rect.collidepoint(event.pos):
+                    option = "menu"
+                    print(option)
+                    return option
+                elif game_stats_button_rect.collidepoint(event.pos):
+                    option = "game stats"
+                    print(option)
+                    return option
+
+        pygame.display.flip()
+        pygame.time.Clock().tick(FPS)
+
+
+def ViewGameStats():
+    pass
 
 
 # Constants
