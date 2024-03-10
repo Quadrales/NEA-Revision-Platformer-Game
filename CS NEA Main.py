@@ -185,9 +185,9 @@ def HashPassword(password):
     # Create a new file to store hashed passwords
     with open("hashed_users", "w") as hashed_file:
         for line in lines:
-            username, password = line.strip().split(",")  # Assuming username and password are separated by comma
+            username, password = line.strip().split(",")
             hashed_password = hashlib.sha256(password.encode()).hexdigest()
-            #hashed_file.write(f"{username},{hashed_password}\n")
+            hashed_file.write(f"{username},{hashed_password}\n")
 
             print("Passwords hashed and saved to 'hashed_users.txt'.")
 
@@ -395,10 +395,28 @@ class Sword:
 
 # Class for enemies
 class Enemy:
-    def __init__(self, x, y, width, height, speed, health=50):
-        self.rect = pygame.Rect(x, y, width, height)
-        self.speed = speed
-        self.health = health
+    def __init__(self, x, y, enemy_type):
+        self.x = x
+        self.y = y
+        self.enemy_type = enemy_type
+        if enemy_type == 1:
+            self.width = 50
+            self.height = 40
+            self.speed = 2.5
+            self.health = 45
+            self.rect = pygame.Rect(self.x, self.y, self.width, self.height)
+        elif enemy_type == 2:
+            self.width = 30
+            self.height = 80
+            self.speed = 2.1
+            self.health = 75
+            self.rect = pygame.Rect(self.x, self.y-40, self.width, self.height)
+        else:
+            self.width = 80
+            self.height = 90
+            self.speed = 1.7
+            self.health = 120
+            self.rect = pygame.Rect(self.x, self.y-50, self.width, self.height)
 
     def move(self, player):
         if self.rect.x < player.rect.x:
@@ -415,7 +433,12 @@ class Enemy:
             enemies.remove(self)
             if random.randint(1, 1) == 1:
                 # Create an upgrade box
-                upgrade_box = UpgradeBox(self.rect.x, self.rect.y)
+                if self.enemy_type == 1:
+                    upgrade_box = UpgradeBox(self.rect.x, self.rect.y-10)
+                elif self.enemy_type == 2:
+                    upgrade_box = UpgradeBox(self.rect.x, self.rect.y+30)
+                else:
+                    upgrade_box = UpgradeBox(self.rect.x, self.rect.y+40)
                 upgrade_boxes.append(upgrade_box)
 
 class UpgradeBox:
@@ -438,7 +461,6 @@ class Player:
         self.attack_speed = 1
         self.damage_resistance = 0
         self.attacking = False  # Flag to track if the player is currently attacking
-        self.last_attack_time = 0
         self.last_damage_time = 0
         self.damage_cooldown = 1.5  # Cooldown time in seconds
         self.facing_right = True  # Initially facing right
@@ -446,6 +468,11 @@ class Player:
         self.facing_down = False
         self.gun = Gun()
         self.sword = Sword()
+        self.dashing = False
+        self.last_dash_time = 0
+        self.dash_duration = 0.2
+        self.dash_cooldown = 1
+        self.can_dash = True
 
     @property
     def x(self):
@@ -456,14 +483,15 @@ class Player:
         return self.rect.y
 
     def move(self, keys):
-        if keys[pygame.K_a]:
-            self.x_speed = -5
-            self.facing_right = False  # Set facing direction to left
-        elif keys[pygame.K_d]:
-            self.x_speed = 5
-            self.facing_right = True  # Set facing direction to right
-        else:
-            self.x_speed = 0
+        if self.dashing == False:
+            if keys[pygame.K_a]:
+                self.x_speed = -5
+                self.facing_right = False  # Set facing direction to left
+            elif keys[pygame.K_d]:
+                self.x_speed = 5
+                self.facing_right = True  # Set facing direction to right
+            else:
+                self.x_speed = 0
         # Checks if player is also facing up or down
         if keys[pygame.K_w]:
             self.facing_up = True
@@ -474,10 +502,33 @@ class Player:
         else:
             self.facing_up = False
             self.facing_down = False
+        # Checks if player presses the dash button
+        if keys[pygame.K_LSHIFT] and self.can_dash == True:
+            self.dashing = True
+            self.last_dash_time = time.time()
+            self.can_dash = False
+
+    def dash(self):
+        current_time = time.time()
+        if self.dashing == True:
+            if current_time - self.last_dash_time <= self.dash_duration:
+                self.y_speed = 0
+                if self.facing_right == True:
+                    self.x_speed = 25
+                else:
+                    self.x_speed = -25
+                dashing = True
+                print(current_time - self.last_dash_time)
+            else:
+                self.dashing = False
+        elif current_time - self.last_dash_time > self.dash_cooldown:
+            self.dashing = False
+            self.can_dash = True
 
     def jump(self):
-        if self.on_surface():
-            self.y_speed = self.jump_force
+        if self.dashing == False:
+            if self.on_surface():
+                self.y_speed = self.jump_force
 
     def on_surface(self):
         if self.y_speed == 0:
@@ -485,7 +536,8 @@ class Player:
         return False
 
     def apply_gravity(self):
-        self.y_speed += self.gravity
+        if self.dashing == False:
+            self.y_speed += self.gravity
 
     def update_position(self):
         self.rect.x += self.x_speed
@@ -523,7 +575,7 @@ class Player:
             self.sword.apply_damage_upgrade()
             self.gun.apply_damage_upgrade()
         elif upgrade == "damage resistance":
-            self.damage_resistance += 3
+            self.damage_resistance += 2
         elif upgrade == "attack speed":
             self.attack_speed *= 0.9
             self.sword.apply_attack_upgrade(self.attack_speed)
@@ -547,7 +599,7 @@ def HandleUpgrade():
 
         # Draw text for the upgrade buttons
         DrawText("Weapon Damage +10%", base_font, LIGHT_GREY, 450, 300)
-        DrawText("Damage Resistance +3", base_font, LIGHT_GREY, 450, 450)
+        DrawText("Damage Resistance +2", base_font, LIGHT_GREY, 450, 450)
         DrawText("Attack Speed +10%", base_font, LIGHT_GREY, 450, 600)
         DrawText("Select Upgrade", big_font, LIGHT_GREY, 480, 150)
 
@@ -581,11 +633,13 @@ def HandleUpgrade():
 
 def GameplayLoop():
     # Player creation
-    player = Player(50, 50, 50, 50)
+    player = Player(500, 50, 50, 50)
 
     # Camera properties
     camera_x = 0
     camera_speed = 5
+
+    current_time = time.time()
 
     # Create some platforms
     platforms = [
@@ -598,11 +652,11 @@ def GameplayLoop():
 
     # Create enemies
     enemies = [
-        Enemy(600, 460, 50, 40, 2),
-        Enemy(800, 260, 50, 40, 2),
-        Enemy(1000, 460, 50, 40, 2),
-        Enemy(1400, 460, 50, 40, 2),
-        Enemy(1700, 460, 50, 40, 2)
+        Enemy(600, 460, 1),
+        Enemy(800, 260, 3),
+        Enemy(1000, 460, 2),
+        Enemy(1400, 460, 1),
+        Enemy(1700, 460, 3),
     ]
 
     # Main game loop
@@ -636,6 +690,9 @@ def GameplayLoop():
         # Check for player jump
         if keys[pygame.K_SPACE]:
             player.jump()
+
+        # Check for player dash
+        player.dash()
 
         # Apply gravity
         player.apply_gravity()
@@ -717,6 +774,9 @@ def GameplayLoop():
             elif option == "game stats":
                 #ViewGameStats()
                 return
+
+        print(player.dashing)
+        
         pygame.display.flip()
         pygame.time.Clock().tick(FPS)
 
