@@ -1,6 +1,10 @@
+# Modules
 import pygame
 import time
 import sys
+import os
+import hashlib
+import random
 
 # Constants
 WIDTH, HEIGHT = 1280, 720
@@ -32,7 +36,6 @@ pygame.init()
 # Other Global Variables
 menu_bg_image = pygame.image.load('nea_menu_background.jpg')
 base_font = pygame.font.Font(None, 48)
-upgrade_boxes = []
 
 # Sets the window size and displays it as a rectangluar window
 window = pygame.display.set_mode((WIDTH, HEIGHT))
