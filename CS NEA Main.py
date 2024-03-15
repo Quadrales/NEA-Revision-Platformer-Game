@@ -24,8 +24,8 @@ class Platform:
         pygame.draw.rect(window, PLATFORM_COLOUR, (self.rect.x - camera_x, self.rect.y, self.rect.width, self.rect.height))
 
 class Bullet:
-    def __init__(self, x, y, direction, damage):
-        self.rect = pygame.Rect(x, y, 16, 8)
+    def __init__(self, x, y, width, height, direction, damage):
+        self.rect = pygame.Rect(x, y, width, height)
         self.direction = direction
         self.speed = 12
         self.damage = damage
@@ -50,9 +50,9 @@ class Gun:
         current_time = time.time()
         if current_time - self.last_shot_time > self.cooldown:
             if player.facing_right:
-                bullet = Bullet(player.rect.x + player.rect.width - 16, player.rect.y + player.rect.height / 2 - 2, "right", self.bullet_damage)
+                bullet = Bullet(player.rect.x + player.rect.width - 16, player.rect.y + player.rect.height / 2 - 2, 16, 8, "right", self.bullet_damage)
             else:
-                bullet = Bullet(player.rect.x, player.rect.y + player.rect.height / 2 - 2, "left", self.bullet_damage)
+                bullet = Bullet(player.rect.x, player.rect.y + player.rect.height / 2 - 2, 16, 8, "left", self.bullet_damage)
             self.bullets.append(bullet)
             self.last_shot_time = current_time
 
@@ -148,7 +148,7 @@ class Enemy:
         self.health -= damage
         if self.health <= 0:
             enemies.remove(self)
-            if random.randint(1, 1) == 1:
+            if random.randint(1, 3) == 1:
                 # Create an upgrade box
                 if self.enemy_type == 1:
                     upgrade_box = UpgradeBox(self.rect.x, self.rect.y-10)
@@ -158,6 +158,143 @@ class Enemy:
                     upgrade_box = UpgradeBox(self.rect.x, self.rect.y+40)
                 upgrade_boxes.append(upgrade_box)
 
+class ProjectileBullet(Bullet):
+    def __init__(self, x, y, width, height, direction, damage):
+        super().__init__(x, y, width, height, direction, damage)
+        self.initial_x = x
+        self.range = 500  # Set the range for the projectile
+
+    def update(self):
+        if self.direction == "right":
+            self.rect.x += self.speed
+        else:
+            self.rect.x -= self.speed
+        # Check if the bullet has reached its range
+        if abs(self.rect.x - self.initial_x) >= self.range:
+            self.destroy()  # Remove the bullet if it exceeds the range
+
+    def destroy(self):
+        if self in self.boss.bullets:
+            self.boss.bullets.remove(self)
+
+class Boss:
+    def __init__(self, x, y, boss_type):
+        self.x = x
+        self.y = y
+        self.boss_type = boss_type
+        if boss_type == 1:
+            self.width = 100
+            self.height = 80
+            self.speed = 2.8
+            self.health = 45
+            self.rect = pygame.Rect(self.x, self.y+20, self.width, self.height)
+        elif boss_type == 2:
+            self.width = 60
+            self.height = 160
+            self.speed = 2.2
+            self.health = 75
+            self.rect = pygame.Rect(self.x, self.y+40, self.width, self.height)
+        else:
+            self.width = 160
+            self.height = 180
+            self.speed = 1.7
+            self.health = 120
+            self.rect = pygame.Rect(self.x, self.y-80, self.width, self.height)
+        self.bullets = []
+        self.last_attack_time = 0
+        self.min_attack_interval = 2.0  # Minimum time interval between attacks
+        self.max_attack_interval = 5.0  # Maximum time interval between attacks
+        self.attack_interval = random.uniform(self.min_attack_interval, self.max_attack_interval)
+        self.attack_range = 400  # Range within which the boss will start attacking
+        self.last_movement_time = 0
+        self.move_duration = random.uniform(1.5, 2.5)  # Duration for random movement
+        self.move_end_time = 0  # Time when the current movement should end
+
+    def move(self, player):
+        current_time = time.time()
+        # Check if the current time is within the movement duration
+        if current_time < self.move_end_time:
+            # Randomly choose a direction to move
+            movement_direction = random.choice(["left", "right"])
+            # Move towards the player if within attack range
+            if abs(player.rect.centerx - self.rect.centerx) <= self.attack_range:
+                if player.rect.centerx < self.rect.centerx:
+                    movement_direction = "left"
+                else:
+                    movement_direction = "right"
+            # Update boss position based on movement direction
+            if movement_direction == "left":
+                self.rect.x -= self.speed
+            elif movement_direction == "right":
+                self.rect.x += self.speed
+        else:
+            # Generate new end time for the next movement
+            self.move_end_time = current_time + self.move_duration
+
+    def draw(self, window, camera_x):
+        pygame.draw.rect(window, (230, 60, 60), (self.rect.x - camera_x, self.rect.y, self.rect.width, self.rect.height))
+
+    def take_damage(self, damage, enemies):
+        self.health -= damage
+        if self.health <= 0:
+            enemies.remove(self)
+            # Create an upgrade box
+            if self.boss_type == 1:
+                upgrade_box = UpgradeBox(self.rect.x, self.rect.y-20)
+            elif self.boss_type == 2:
+                upgrade_box = UpgradeBox(self.rect.x, self.rect.y+60)
+            else:
+                upgrade_box = UpgradeBox(self.rect.x, self.rect.y+80)
+            upgrade_boxes.append(upgrade_box)
+
+    def attack(self, player, camera_x):
+        current_time = time.time()
+        if current_time - self.last_attack_time > self.attack_interval:
+            if self.boss_type == 1:
+                self.attack_type1(player, camera_x)
+            elif self.boss_type == 2:
+                self.attack_type2(player)
+            else:
+                self.attack_type3(player)
+            self.last_attack_time = current_time
+            # Update the attack interval for the next attack
+            self.attack_interval = random.uniform(self.min_attack_interval, self.max_attack_interval)
+
+    def attack_type1(self, player, camera_x):
+        # Sword slash attack
+        # Create hitbox for the sword slash
+        if self.rect.right < player.rect.left:
+            # Boss is to the left of the player
+            hitbox = pygame.Rect(self.rect.right, self.rect.centery - 15, 100, 30)
+        else:
+            # Boss is to the right of the player
+            hitbox = pygame.Rect(self.rect.left - 100, self.rect.centery - 15, 100, 30)
+        
+        # Check if player collides with the hitbox and if so, damages the player
+        if hitbox.colliderect(player.rect):
+            player.take_damage(random.randint(18, 23))
+        
+        # Draw the hitbox
+        pygame.draw.rect(window, GREEN, (hitbox.x - camera_x, hitbox.y, hitbox.width, hitbox.height))
+
+    def attack_type2(self, player):
+        # Large gun blast attack
+        # Create projectile bullet and add it to the boss's bullets list
+        if self.boss_type == 1:
+            bullet = ProjectileBullet(self.rect.x, self.rect.y + self.rect.height / 2 - 4, 64, 32, "right", 15)
+        elif self.boss_type == 2:
+            bullet = ProjectileBullet(self.rect.x, self.rect.y + self.rect.height / 2 - 4, 64, 32, "left", 15)
+        else:
+            bullet = ProjectileBullet(self.rect.x, self.rect.y + self.rect.height / 2 - 4, 64, 32, "right", 15)
+        bullet.boss = self  # Assign the boss object to the bullet
+        self.bullets.append(bullet)
+
+    def attack_type3(self, player):
+        # Charging attack
+        # Check if player collides with the boss and if so, damages the player
+        if self.rect.colliderect(player.rect):
+            player.take_damage(random.randint(24, 28))
+
 class UpgradeBox:
     def __init__(self, x, y):
         self.rect = pygame.Rect(x, y, 30, 30)  # Adjust the size as needed
@@ -165,6 +302,7 @@ class UpgradeBox:
 
     def draw(self, window, camera_x):
         pygame.draw.rect(window, self.color, (self.rect.x - camera_x, self.rect.y+20, self.rect.width, self.rect.height))
+
 
 # Set up the main character
 class Player:
@@ -363,17 +501,22 @@ def GameplayLoop():
         for line in f:
             coords = line.strip().split(',')
             platforms.append(Platform(int(coords[0]), int(coords[1]), int(coords[2]), int(coords[3])))
-            print(coords)
-    print(platforms)
 
     # Load enemies from file
     enemies = []
+    '''
     with open('level_1_enemies.txt', 'r') as f:
         for line in f:
             coords = line.strip().split(',')
             enemies.append(Enemy(int(coords[0]), int(coords[1]), int(coords[2])))
-            print(coords)
-    print(enemies)
+            '''
+
+    # Create boss instances
+    bosses = []
+    boss1 = Boss(700, 400, 1)
+    boss2 = Boss(1000, 300, 2)
+    boss3 = Boss(1300, 400, 3)
+    bosses.extend([boss1, boss2, boss3])
 
     # Main game loop
     running = True
@@ -392,9 +535,6 @@ def GameplayLoop():
                             player.apply_upgrade(upgrade)
                             upgrade_boxes.remove(upgrade_box)  # Remove the upgrade box after interaction
 
-        # Update player position
-        player.update_position()
-        
         # Player movement
         keys = pygame.key.get_pressed()
         player.move(keys)
@@ -446,7 +586,28 @@ def GameplayLoop():
         for enemy in enemies:
             if player.rect.colliderect(enemy.rect):
                 player.take_damage(10 - player.damage_resistance)  # Player takes 10 damage upon collision with an enemy
-                print(player.health)
+
+        # Move bosses
+        for boss in bosses:
+            boss.move(player)
+            boss.attack(player, camera_x)
+
+        # Player and boss collision detection
+        for boss in bosses:
+            if player.rect.colliderect(boss.rect):
+                player.take_damage(15 - player.damage_resistance)  # Player takes 10 damage upon collision with an enemy
+
+        # Update projectile bullets
+        for boss in bosses:
+            for bullet in boss.bullets:
+                bullet.update()
+
+        # Check for collision between projectile bullets and player
+        for boss in bosses:
+            for bullet in boss.bullets:
+                if bullet.rect.colliderect(player.rect):
+                    player.take_damage(bullet.damage)
+                    bullet.destroy()         
 
         # Check for collision with platforms
         for platform in platforms:
@@ -460,8 +621,8 @@ def GameplayLoop():
                     player.y_speed = 0  # Stop jumping
             # Collision on the x-axis
             elif ((player.rect.left == platform.rect.right and keys[pygame.K_d] == False) or (player.rect.right == platform.rect.left and keys[pygame.K_a] == False)) and (player.y > platform.rect.top - 50 and player.y < platform.rect.bottom):
-                    player.x_speed = 0
-        
+                player.x_speed = 0
+
         # Draw background
         window.fill(GAME_BG)
 
@@ -475,22 +636,37 @@ def GameplayLoop():
         # Draw bullets
         player.gun.draw_bullets(window, camera_x)
 
+        # Update player position
+        player.update_position()
+
         # Draw enemies
         for enemy in enemies:
             enemy.draw(window, camera_x)
+
+        # Draw bosses
+        for boss in bosses:
+            boss.draw(window, camera_x)
+
+        # Draw projectile bullets
+        for boss in bosses:
+            for bullet in boss.bullets:
+                bullet.draw(window, camera_x)
 
         # Draw upgrade boxes
         for upgrade_box in upgrade_boxes:
             upgrade_box.draw(window, camera_x)
 
+        # Check player health
         if player.health <= 0:
             option = GameOver()
             if option == "menu":
                 return
             elif option == "game stats":
-                #ViewGameStats()
+                # ViewGameStats()
                 return
-        
+
+        print(player.health)
+
         pygame.display.flip()
         pygame.time.Clock().tick(FPS)
 
