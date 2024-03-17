@@ -26,6 +26,7 @@ class Platform:
 class Bullet:
     def __init__(self, x, y, width, height, direction, damage):
         self.rect = pygame.Rect(x, y, width, height)
+        self.initial_x = x
         self.direction = direction
         self.speed = 12
         self.damage = damage
@@ -45,6 +46,7 @@ class Gun:
         self.last_shot_time = 0
         self.cooldown = 0.25 # Cooldown time in seconds
         self.bullet_damage = 8  # Default bullet damage
+        self.bullet_range = 600
 
     def shoot(self, player):
         current_time = time.time()
@@ -78,6 +80,12 @@ class Gun:
 
     def apply_attack_upgrade(self, attack_speed):
         self.cooldown *= attack_speed
+
+    def remove_out_of_range_bullets(self):
+        for bullet in self.bullets:
+            # Check if bullet is out of range
+            if abs(bullet.rect.x - bullet.initial_x) > self.bullet_range:
+                self.bullets.remove(bullet)
 
 class Sword:
     def __init__(self):
@@ -135,27 +143,62 @@ class Enemy:
         if enemy_type == 1:
             self.width = 50
             self.height = 40
-            self.speed = 2.5
-            self.health = 45
+            self.speed = 2.2
+            self.default_speed = 2.2
+            self.health = 50
             self.rect = pygame.Rect(self.x, self.y, self.width, self.height)
         elif enemy_type == 2:
             self.width = 30
             self.height = 80
-            self.speed = 2.1
+            self.speed = 2.0
+            self.default_speed = 2.0
             self.health = 75
             self.rect = pygame.Rect(self.x, self.y-40, self.width, self.height)
         else:
             self.width = 80
             self.height = 90
             self.speed = 1.7
+            self.default_speed = 1.7
             self.health = 120
             self.rect = pygame.Rect(self.x, self.y-50, self.width, self.height)
+        self.move_timer = 0
+        self.move_duration = 1.5  # Time in seconds for moving
+        self.pause_duration = 0.5  # Time in seconds for pausing
+        self.moving = False  # Flag to track if the enemy is currently moving
+        self.pause_time = 0  # Time at which the enemy starts pausing
 
-    def move(self, player):
-        if self.rect.x < player.rect.x:
-            self.rect.x += self.speed
-        elif self.rect.x > player.rect.x:
-            self.rect.x -= self.speed
+    def move(self, player, platforms):
+        # Calculate the distance between the enemy and the player
+        distance_to_player = abs(player.rect.centerx - self.rect.centerx)
+
+        # Check if the player is within range and no platform obstructs the line of sight
+        if distance_to_player <= 500 and not self.obstructed(player, platforms):
+            # Check if it's time to change movement state
+            current_time = time.time()
+            if current_time - self.move_timer >= (self.move_duration + self.pause_duration):
+                self.move_timer = current_time
+                self.pause_time = current_time
+                self.moving = True  # Start moving
+            elif self.moving and current_time - self.pause_time >= self.move_duration:
+                self.moving = False  # Pause after moving
+        else:
+            self.moving = False
+
+        # Perform movement based on the current state
+        if self.moving:
+            if self.rect.x < player.rect.x:
+                self.rect.x += self.speed
+            elif self.rect.x > player.rect.x:
+                self.rect.x -= self.speed
+
+    def obstructed(self, player, platforms):
+        # Check if any platform obstructs the line of sight from the enemy to the player
+        for platform in platforms:
+            if (player.rect.left < platform.rect.left < self.rect.right or
+                player.rect.left < platform.rect.right < self.rect.right) and \
+                    (platform.rect.top <= self.rect.centery <= platform.rect.bottom):
+                return True
+        return False
 
     def draw(self, window, camera_x):
         pygame.draw.rect(window, (230, 60, 60), (self.rect.x - camera_x, self.rect.y, self.rect.width, self.rect.height))
@@ -440,8 +483,8 @@ class Player:
     def apply_upgrade(self, upgrade, upgrade_type):
         # Apply the selected upgrade
         if upgrade == "weapon damage":
-            self.sword.apply_damage_upgrade()
-            self.gun.apply_damage_upgrade()
+            self.sword.apply_damage_upgrade(upgrade_type)
+            self.gun.apply_damage_upgrade(upgrade_type)
         elif upgrade == "damage resistance":
             self.damage_resistance += 2
         elif upgrade == "attack speed":
@@ -535,7 +578,7 @@ def HandleUpgrade(upgrade_type):
 
             # Draw text for the upgrade buttons
             DrawText("Weapon Damage +30%", base_font, LIGHT_GREY, 450, 300)
-            DrawText("Extra Health +25", base_font, LIGHT_GREY, 450, 450)
+            DrawText("Extra Health +30", base_font, LIGHT_GREY, 450, 450)
             DrawText("Attack Speed +30%", base_font, LIGHT_GREY, 450, 600)
             DrawText("Select Boss Upgrade", big_font, LIGHT_GREY, 400, 150)
 
@@ -567,6 +610,23 @@ def HandleUpgrade(upgrade_type):
             pygame.display.flip()
             pygame.time.Clock().tick(FPS)
 
+def LoadLevel(level):
+    # Load platforms from file
+    platforms = []
+    with open('level_' + str(level) + '_platforms.txt', 'r') as f:
+        for line in f:
+            coords = line.strip().split(',')
+            platforms.append(Platform(int(coords[0]), int(coords[1]), int(coords[2]), int(coords[3])))
+
+    # Load enemies from file
+    enemies = []
+    with open('level_' + str(level) + '_enemies.txt', 'r') as f:
+        for line in f:
+            coords = line.strip().split(',')
+            enemies.append(Enemy(int(coords[0]), int(coords[1]), int(coords[2])))
+
+    return platforms, enemies
+
 def GameplayLoop():
     # Player creation
     player = Player(500, 50, 50, 50)
@@ -577,30 +637,20 @@ def GameplayLoop():
 
     current_time = time.time()
 
-    # Load platforms from file
-    platforms = []
-    with open('level_1_platforms.txt', 'r') as f:
-        for line in f:
-            coords = line.strip().split(',')
-            platforms.append(Platform(int(coords[0]), int(coords[1]), int(coords[2]), int(coords[3])))
+    level = 1
 
-    # Load enemies from file
-    enemies = []
-    '''
-    with open('level_1_enemies.txt', 'r') as f:
-        for line in f:
-            coords = line.strip().split(',')
-            enemies.append(Enemy(int(coords[0]), int(coords[1]), int(coords[2])))
-            '''
+    platforms, enemies = LoadLevel(level)
 
     # Create boss instances
     bosses = []
-    '''
-    boss1 = Boss(700, 400, 1)
+    boss1 = Boss(5600, 400, 1)
     boss2 = Boss(1000, 300, 2)
     boss3 = Boss(1300, 400, 3)
-    bosses.extend([boss1, boss2, boss3])
-    '''
+    bosses.extend([boss1])
+    if level == 2:
+        bosses.extend([boss2])
+    elif level == 3:
+        bosses.extend([boss3])
 
     # Main game loop
     running = True
@@ -622,6 +672,9 @@ def GameplayLoop():
                             upgrade = HandleUpgrade(upgrade_type)
                             player.apply_upgrade(upgrade, upgrade_type)
                             upgrade_boxes.remove(upgrade_box)  # Remove the upgrade box after interaction
+                            if upgrade_type == "boss":
+                                level += 1
+                                platforms, enemies = LoadLevel(level)
 
         # Player movement
         keys = pygame.key.get_pressed()
@@ -651,6 +704,8 @@ def GameplayLoop():
 
         # Update bullets
         player.gun.update_bullets()
+        # Remove out-of-range bullets
+        player.gun.remove_out_of_range_bullets()
 
         # Check for bullet-enemy collisions
         for bullet in player.gun.bullets:
@@ -676,13 +731,26 @@ def GameplayLoop():
 
         # Move enemies
         for enemy in enemies:
-            enemy.move(player)
+            # Only move the enemy if it's not obstructed
+            if not enemy.obstructed(player, platforms):
+                enemy.move(player, platforms)
 
         # Player and enemy collision detection
         for enemy in enemies:
             if player.rect.colliderect(enemy.rect):
                 player.take_damage(10 - player.damage_resistance)  # Player takes 10 damage upon collision with an enemy
 
+        # Stop enemies from walking off platforms
+        for platform in platforms:
+            for enemy in enemies:
+                if enemy.rect.bottom in range(platform.rect.top-1, platform.rect.top+1):
+                    if enemy.rect.left == platform.rect.left and player.rect.left < enemy.rect.left:
+                        enemy.speed = 0
+                    elif enemy.rect.right == platform.rect.right and player.rect.right > enemy.rect.right:
+                        enemy.speed = 0
+                    else:
+                        enemy.speed = enemy.default_speed
+        
         # Move bosses
         for boss in bosses:
             boss.move(player)
@@ -720,7 +788,12 @@ def GameplayLoop():
                 player.x_speed = 0
         
         # Draw background
-        window.fill(GAME_BG)
+        if level == 1:
+            window.fill(LEVEL_1_BG)
+        elif level == 2:
+            window.fill(LEVEL_2_BG)
+        else:
+            window.fill(LEVEL_3_BG)
 
         # Draw platforms
         for platform in platforms:
@@ -766,6 +839,9 @@ def GameplayLoop():
         # Draw upgrade boxes
         for upgrade_box in upgrade_boxes:
             upgrade_box.draw(window, camera_x)
+
+        if level == 'level_1':
+            DrawText("Level 1", base_font, LIGHT_GREY, 0, 0)
 
         pygame.display.flip()
         pygame.time.Clock().tick(FPS)
@@ -831,7 +907,9 @@ LIGHT_GREY = (10, 18, 58)
 DARK_GREY = (0, 17, 39)
 LAVENDER = (136, 148, 255)
 LIGHT_BLUE = (99, 155, 201)
-GAME_BG = (187, 159, 255)
+LEVEL_1_BG = (187, 159, 255)
+LEVEL_2_BG = (22, 202, 122)
+LEVEL_3_BG = (15, 25, 110)
 PLATFORM_COLOUR = (126, 132, 247)
 WALL_COLOUR = (200, 200, 200)
 
