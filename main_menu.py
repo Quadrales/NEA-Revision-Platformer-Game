@@ -29,6 +29,7 @@ LIGHT_BLUE = (99, 155, 201)
 GAME_BG = (187, 159, 255)
 PLATFORM_COLOUR = (126, 132, 247)
 WALL_COLOUR = (200, 200, 200)
+GAME_TITLE_COLOUR = (29, 25, 91)
 
 # Initialize Pygame
 pygame.init()
@@ -46,6 +47,7 @@ def DrawText(text, font, textCol, x, y):
     window.blit(img, (x, y))
 
 def MainMenu():
+    big_font = pygame.font.Font(None, 80)
     # Main loop
     while True:
         for event in pygame.event.get():
@@ -93,7 +95,8 @@ def MainMenu():
         if quit_button_rect.collidepoint(pygame.mouse.get_pos()):
             pygame.draw.rect(window, LIGHT_BLUE, quit_button_rect, 4)
 
-        # Display text on buttons
+        # Display text on buttons and game title
+        DrawText("Roguelike Revision Platformer", big_font, GAME_TITLE_COLOUR, 240, 80)
         DrawText("Start Game", base_font, LIGHT_GREY, 540, 200)
         DrawText("Settings", base_font, LIGHT_GREY, 540, 300)
         DrawText("Statistics", base_font, LIGHT_GREY, 540, 400)

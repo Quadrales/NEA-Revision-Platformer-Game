@@ -20,8 +20,8 @@ class Platform:
     def __init__(self, x, y, width, height):
         self.rect = pygame.Rect(x, y, width, height)
 
-    def draw(self, window, camera_x):
-        pygame.draw.rect(window, PLATFORM_COLOUR, (self.rect.x - camera_x, self.rect.y, self.rect.width, self.rect.height))
+    def draw(self, window, camera_x, platform_colour):
+        pygame.draw.rect(window, platform_colour, (self.rect.x - camera_x, self.rect.y, self.rect.width, self.rect.height))
 
 class Bullet:
     def __init__(self, x, y, width, height, direction, damage):
@@ -44,8 +44,9 @@ class Gun:
     def __init__(self):
         self.bullets = []
         self.last_shot_time = 0
-        self.cooldown = 0.25 # Cooldown time in seconds
-        self.bullet_damage = 8  # Default bullet damage
+        self.cooldown = 0.25
+        self.default_bullet_damage = 8
+        self.bullet_damage = self.default_bullet_damage
         self.bullet_range = 600
 
     def shoot(self, player):
@@ -89,7 +90,8 @@ class Gun:
 
 class Sword:
     def __init__(self):
-        self.damage = 20
+        self.default_damage = 20
+        self.damage = self.default_damage
         self.last_swing_time = 0
         self.cooldown = 0.8 # Cooldown time in seconds
 
@@ -143,24 +145,24 @@ class Enemy:
         if enemy_type == 1:
             self.width = 50
             self.height = 40
-            self.speed = 2.2
-            self.default_speed = 2.2
+            self.speed = 2.3
+            self.default_speed = 2.3
             self.health = 50
             self.rect = pygame.Rect(self.x, self.y, self.width, self.height)
         elif enemy_type == 2:
             self.width = 30
             self.height = 80
-            self.speed = 2.0
-            self.default_speed = 2.0
+            self.speed = 2.1
+            self.default_speed = 2.1
             self.health = 75
-            self.rect = pygame.Rect(self.x, self.y-40, self.width, self.height)
+            self.rect = pygame.Rect(self.x, self.y-80, self.width, self.height)
         else:
             self.width = 80
             self.height = 90
-            self.speed = 1.7
-            self.default_speed = 1.7
+            self.speed = 1.8
+            self.default_speed = 1.8
             self.health = 120
-            self.rect = pygame.Rect(self.x, self.y-50, self.width, self.height)
+            self.rect = pygame.Rect(self.x, self.y-90, self.width, self.height)
         self.move_timer = 0
         self.move_duration = 1.5  # Time in seconds for moving
         self.pause_duration = 0.5  # Time in seconds for pausing
@@ -303,7 +305,7 @@ class Boss:
             elif self.boss_type == 2:
                 upgrade_box = UpgradeBox(self.rect.x, self.rect.y+70, 40, 40)
             else:
-                upgrade_box = UpgradeBox(self.rect.x, self.rect.y+120, 40, 40)
+                return
             upgrade_boxes.append(upgrade_box)
 
     def attack(self, player, camera_x):
@@ -340,9 +342,9 @@ class Boss:
         # Large gun blast attack
         # Create projectile bullet and add it to the boss's bullets list
         if self.boss_type == 2:
-            bullet = ProjectileBullet(self.rect.x, self.rect.y + self.rect.height / 2 - 4, 64, 32, "left", 15)
+            bullet = ProjectileBullet(self.rect.x, self.rect.y + self.rect.height / 2 - 20, 64, 80, "left", 15)
         elif self.boss_type == 3:
-            bullet = ProjectileBullet(self.rect.x, self.rect.y + self.rect.height / 2 - 4, 64, 32, "left", 15)
+            bullet = ProjectileBullet(self.rect.x, self.rect.y + self.rect.height / 2 - 20, 64, 80, "left", 15)
         bullet.boss = self  # Assign the boss object to the bullet
         self.bullets.append(bullet)
 
@@ -366,6 +368,8 @@ class Player:
         self.rect = pygame.Rect(x, y, width, height)
         self.health = max_health
         self.max_health = max_health
+        self.regen_rate = 1  # Health regeneration rate (health per second)
+        self.last_regen_time = 0
         self.x_speed = 0
         self.y_speed = 0
         self.jump_force = -12
@@ -374,7 +378,7 @@ class Player:
         self.damage_resistance = 0
         self.attacking = False  # Flag to track if the player is currently attacking
         self.last_damage_time = 0
-        self.damage_cooldown = 1.5  # Cooldown time in seconds
+        self.damage_cooldown = 1.5
         self.facing_right = True  # Initially facing right
         self.facing_up = False
         self.facing_down = False
@@ -480,6 +484,16 @@ class Player:
                 self.speed_modifier = 0.7
                 self.last_damage_time = current_time
 
+    def regen(self):
+        current_time = time.time()
+        if current_time - self.last_damage_time > 4:  # Start regenerating health after 4 seconds of no damage
+            if self.health < self.max_health:
+                if current_time - self.last_regen_time > 2:
+                    self.health += self.regen_rate
+                    if self.health > self.max_health:
+                        self.health = self.max_health
+                    self.last_regen_time = current_time
+
     def apply_upgrade(self, upgrade, upgrade_type):
         # Apply the selected upgrade
         if upgrade == "weapon damage":
@@ -501,12 +515,6 @@ class Player:
             self.attack_speed *= 0.7
             self.sword.apply_attack_upgrade(self.attack_speed)
             self.gun.apply_attack_upgrade(self.attack_speed)
-
-    def heal(self, amount):
-        self.health += amount
-
-    def is_alive(self):
-        return self.health > 0
 
 def DrawHealthBar(window, player):
     # Define the dimensions and position of the health bar
@@ -627,9 +635,49 @@ def LoadLevel(level):
 
     return platforms, enemies
 
+def LoadRevisionQuestions():
+    revision_questions = []
+    with open('revision_questions.txt', 'r') as file:
+        for line in file:
+            revision_questions.append(line.strip().split(','))
+    return revision_questions
+
+def DisplayRevisionQuestion(revision_questions):
+    question, answer1, answer2, answer3 = random.choice(revision_questions)
+    
+    DrawText(question, base_font, LIGHT_GREY, 100, 100)
+    DrawText("A) " + answer1, base_font, LIGHT_GREY, 100, 200)
+    DrawText("B) " + answer2, base_font, LIGHT_GREY, 100, 300)
+    DrawText("C) " + answer3, base_font, LIGHT_GREY, 100, 400)
+    
+    return question, [answer1, answer2, answer3]
+
+def CheckAnswer(player_answer, correct_answer):
+    return player_answer.lower() == correct_answer.lower()
+
+def HandleRevisionQuestion():
+    revision_questions = LoadRevisionQuestions()
+    question, correct_answers = DisplayRevisionQuestion(revision_questions)
+    
+    while True:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_a:
+                    player_answer = correct_answers[0]
+                    return CheckAnswer(player_answer, question.split('?')[1].strip())
+                elif event.key == pygame.K_b:
+                    player_answer = correct_answers[1]
+                    return CheckAnswer(player_answer, question.split('?')[1].strip())
+                elif event.key == pygame.K_c:
+                    player_answer = correct_answers[2]
+                    return CheckAnswer(player_answer, question.split('?')[1].strip())
+
 def GameplayLoop():
     # Player creation
-    player = Player(500, 50, 50, 50)
+    player = Player(590, 50, 50, 50)
 
     # Camera properties
     camera_x = 0
@@ -644,13 +692,17 @@ def GameplayLoop():
     # Create boss instances
     bosses = []
     boss1 = Boss(5600, 400, 1)
-    boss2 = Boss(1000, 300, 2)
-    boss3 = Boss(1300, 400, 3)
+    boss2 = Boss(6800, 380, 2)
+    boss3 = Boss(7300, 520, 3)
     bosses.extend([boss1])
-    if level == 2:
-        bosses.extend([boss2])
+    if level == 1:
+        platform_colour = (126, 132, 247)
+    elif level == 2:
+        platform_colour = (83, 201, 189)
+        bosses[0] = boss2
     elif level == 3:
-        bosses.extend([boss3])
+        platform_colour = (56, 152, 217)
+        bosses[0] = boss3
 
     # Main game loop
     running = True
@@ -669,12 +721,25 @@ def GameplayLoop():
                                 upgrade_type = "enemy"
                             else:
                                 upgrade_type = "boss"
+                            # Call the revision question subroutine
+                            if not HandleRevisionQuestion():
+                                # Player got the question wrong, so resume the game without giving an upgrade
+                                continue
                             upgrade = HandleUpgrade(upgrade_type)
                             player.apply_upgrade(upgrade, upgrade_type)
                             upgrade_boxes.remove(upgrade_box)  # Remove the upgrade box after interaction
                             if upgrade_type == "boss":
                                 level += 1
+                                if level == 2:
+                                    platform_colour = (83, 201, 189)
+                                    bosses.extend([boss2])
+                                elif level == 3:
+                                    platform_colour = (56, 152, 217)
+                                    bosses.extend([boss3])
                                 platforms, enemies = LoadLevel(level)
+                                camera_x = 0
+                                player.rect.x = 590
+                                player.rect.y = 50
 
         # Player movement
         keys = pygame.key.get_pressed()
@@ -686,10 +751,14 @@ def GameplayLoop():
 
         # Check for player dash
         dash_speed = player.dash()
-        if dash_speed == 22:
-            camera_speed = 22
-        else:
-            camera_speed = 5
+
+        # Camera movement
+        if player.x - camera_x > 590:
+            camera_x += camera_speed
+        elif player.x - camera_x < 590:
+            camera_x -= camera_speed
+
+        camera_speed = abs(player.x_speed)
 
         # Apply gravity
         player.apply_gravity()
@@ -707,6 +776,16 @@ def GameplayLoop():
         # Remove out-of-range bullets
         player.gun.remove_out_of_range_bullets()
 
+        # Regenerate player health
+        player.regen()
+
+        # Check if player falls off a platform
+        if player.rect.y > HEIGHT:
+            player.take_damage(25)
+            player.rect.x = 590
+            player.rect.y = 50
+            camera_x = 0
+
         # Check for bullet-enemy collisions
         for bullet in player.gun.bullets:
             for enemy in enemies:
@@ -722,12 +801,6 @@ def GameplayLoop():
                     boss.take_damage(bullet.damage, bosses)
                     player.gun.bullets.remove(bullet)
                     break  # Exit inner loop once bullet hits enemy
-
-        # Camera movement
-        if player.x - camera_x > 500:
-            camera_x += camera_speed
-        elif player.x - camera_x < 500:
-            camera_x -= camera_speed
 
         # Move enemies
         for enemy in enemies:
@@ -773,6 +846,15 @@ def GameplayLoop():
                     player.take_damage(bullet.damage)
                     bullet.destroy()
 
+        if level == 3:
+            if boss.health <= 0:
+                option = GameWin()
+                if option == "menu":
+                    return
+                elif option == "game stats":
+                    #ViewGameStats()
+                    return
+
         # Check for collision with platforms
         for platform in platforms:
             if player.rect.colliderect(platform.rect) and player.rect.left != platform.rect.right and player.rect.right != platform.rect.left:
@@ -797,7 +879,7 @@ def GameplayLoop():
 
         # Draw platforms
         for platform in platforms:
-            platform.draw(window, camera_x)
+            platform.draw(window, camera_x, platform_colour)
 
         # Draw player
         player.draw(window, camera_x)
@@ -840,8 +922,7 @@ def GameplayLoop():
         for upgrade_box in upgrade_boxes:
             upgrade_box.draw(window, camera_x)
 
-        if level == 'level_1':
-            DrawText("Level 1", base_font, LIGHT_GREY, 0, 0)
+        DrawText("Level " + str(level), base_font, LIGHT_GREY, 0, 0)
 
         pygame.display.flip()
         pygame.time.Clock().tick(FPS)
@@ -857,6 +938,41 @@ def GameOver():
 
         # Draw text for the option buttons
         DrawText("Game Over", big_font, RED, 510, 150)
+        DrawText("Back To Menu", base_font, LIGHT_GREY, 450, 300)
+        DrawText("View Game Stats", base_font, LIGHT_GREY, 450, 450)
+
+        if menu_button_rect.collidepoint(pygame.mouse.get_pos()):
+            pygame.draw.rect(window, LIGHT_BLUE, menu_button_rect, 4)
+        if game_stats_button_rect.collidepoint(pygame.mouse.get_pos()):
+            pygame.draw.rect(window, LIGHT_BLUE, game_stats_button_rect, 4)
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if menu_button_rect.collidepoint(event.pos):
+                    option = "menu"
+                    print(option)
+                    return option
+                elif game_stats_button_rect.collidepoint(event.pos):
+                    option = "game stats"
+                    print(option)
+                    return option
+
+        pygame.display.flip()
+        pygame.time.Clock().tick(FPS)
+
+def GameWin():
+    big_font = pygame.font.Font(None, 64)
+
+    while True:
+        # Draw option buttons and get their rects
+        menu_button_rect = pygame.draw.rect(window, DARK_GREY, (440, 280, 400, 70), 4)
+        game_stats_button_rect = pygame.draw.rect(window, DARK_GREY, (440, 430, 400, 70), 4)
+
+        # Draw text for the option buttons
+        DrawText("You Won", big_font, WIN_TEXT_COLOUR, 510, 150)
         DrawText("Back To Menu", base_font, LIGHT_GREY, 450, 300)
         DrawText("View Game Stats", base_font, LIGHT_GREY, 450, 450)
 
@@ -908,10 +1024,10 @@ DARK_GREY = (0, 17, 39)
 LAVENDER = (136, 148, 255)
 LIGHT_BLUE = (99, 155, 201)
 LEVEL_1_BG = (187, 159, 255)
-LEVEL_2_BG = (22, 202, 122)
-LEVEL_3_BG = (15, 25, 110)
+LEVEL_2_BG = (12, 101, 72)
+LEVEL_3_BG = (18, 50, 123)
 PLATFORM_COLOUR = (126, 132, 247)
-WALL_COLOUR = (200, 200, 200)
+WIN_TEXT_COLOUR = (37, 218, 226)
 
 # Initialize Pygame
 pygame.init()
