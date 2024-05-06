@@ -51,6 +51,8 @@ def LoginScreen():
     password_active = False
     valid = False
     error_font = pygame.font.Font(None, 32)
+    display_login_error = False
+    display_create_account_error = False
     # Create 2 text boxes for the username and password to be entered into
     # and 2 boxes for the create account and login buttons
     username_input_rect = pygame.Rect(340, 280, 600, 80)
@@ -78,6 +80,9 @@ def LoginScreen():
                     # Creates a new user with the current value of username and password
                     if valid_account == True:
                         CreateAccount(username, password)
+                    else:
+                        display_create_account_error = True
+                        display_login_error = False
                     username_text = ""
                     password_text = ""
                 elif login_rect.collidepoint(event.pos):
@@ -88,8 +93,8 @@ def LoginScreen():
                     if valid_login == True:
                         return valid_login
                     else:
-                        DrawText("Login not found. Please try again", error_font, (LAVENDER), 590, 600)
-                        time.sleep(2.5)
+                        display_login_error = True
+                        display_create_account_error = False
 
                 else:
                     username_active = False
@@ -134,6 +139,11 @@ def LoginScreen():
         DrawText("Password", base_font, (LIGHT_GREY), 340, 380)
         DrawText("Create Account", base_font, (LIGHT_GREY), 355, 570)
         DrawText("Login", base_font, (LIGHT_GREY), 750, 570)
+
+        if display_login_error == True:
+            DrawText("Login not found. Please try again", error_font, (210, 27, 14), 460, 640)
+        elif display_create_account_error == True:
+            DrawText("Invalid account login. Please try again", error_font, (210, 27, 14), 460, 640)
 
         # Outputs the user's inputted text into it's respective text box
         text_surface = base_font.render(username_text,True, LIGHT_GREY)
@@ -186,38 +196,26 @@ def LoginValidation(username, password):
 
 
 def CreateAccount(username, password):
-    users_file = open("users.txt", "a")
-    user = username + ", " + password
-    users_file.write(os.linesep)
-    users_file.write(user)
-    users_file.close()
+    hashed_password = HashPassword(password)  # Hash the password
+    user = username + ", " + hashed_password  # Combine username and hashed password
+
+    # Append the new user entry to the file containing hashed passwords
+    with open("users.txt", "a") as hashed_file:
+        hashed_file.write(user + "\n")
 
 def LoginCheck(username, password):
-    valid_login = False
-    user = username + ", " + password
+    hashed_password = HashPassword(password)  # Hash the input password
+    user = username + ", " + hashed_password  # Combine username and hashed password
 
-    while valid_login == False:
-        users_file = open("users.txt", "r")
-        for line in users_file:
-            line = line.rstrip()
+    # Open the file containing hashed passwords
+    with open("users.txt", "r") as hashed_file:
+        for line in hashed_file:
+            line = line.strip()
             if line == user:
-                valid_login = True
-                return valid_login
-        if valid_login == False:
-            return valid_login
-
-    users_file.close()
+                return True  # Login successful if the user is found
+    return False  # Login failed if the user is not found
 
 def HashPassword(password):
-    # Read user login details from file
-    with open("users.txt", "r") as file:
-        lines = file.readlines()
-
-    # Create a new file to store hashed passwords
-    with open("hashed_users", "w") as hashed_file:
-        for line in lines:
-            username, password = line.strip().split(",")
-            hashed_password = hashlib.sha256(password.encode()).hexdigest()
-            hashed_file.write(f"{username},{hashed_password}\n")
-
-            print("Passwords hashed and saved to 'hashed_users.txt'.")
+    # Hash the password using SHA-256 algorithm
+    hashed_password = hashlib.sha256(password.encode()).hexdigest()
+    return hashed_password

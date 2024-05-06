@@ -1,0 +1,6 @@
+What does HTML stand for?, Hyper Text Markup Language, High Tech Markup Language, Hyperlink and Text Markup Language, Hyper Text Markup Language
+What is the purpose of a compiler?, To convert source code into machine code, To execute the program line by line, To debug errors in the code, To convert source code into machine code
+What is the square root of 144?, 10, 12, 14, 12
+What is the result of 5 multiplied by 8 minus 6 divided by 2?, 34, 38, 24, 24
+Which planet is known as the "Red Planet"?, Mars, Venus, Jupiter, Mars
+Who painted the famous artwork "Mona Lisa"?, Leonardo da Vinci, Vincent van Gogh, Pablo Picasso, Leonardo da Vinci
